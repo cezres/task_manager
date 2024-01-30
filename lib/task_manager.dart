@@ -1,17 +1,27 @@
 library task_manager;
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart';
+import 'package:task_manager/isolate/background_isolate.dart';
 import 'package:task_manager/task/task_priority.dart';
-import 'package:task_manager/task/task_result.dart';
+import 'package:task_manager/task/result.dart';
 import 'package:task_manager/utils/generate_incremental_id.dart';
 
-part 'task_scheduler.dart';
+part 'scheduler.dart';
 part 'task/task.dart';
+part 'task/isolate_task.dart';
+
+part 'storage/storage.dart';
+part 'storage/storage_manager.dart';
+part 'storage/default_desktop_and_mobile_storage.dart';
+part 'storage/default_web_storage.dart';
 
 abstract class TaskManager extends TaskSchedulerImpl {
-  TaskManager({this.identifier = 'default'}) {
+  TaskManager({required this.identifier}) {
     // SchedulerBinding.instance!.addPostFrameCallback((timeStamp) {
     //   _executeWaitingTasks();
     // });
@@ -64,6 +74,12 @@ abstract class TaskManager extends TaskSchedulerImpl {
 typedef TaskBuilder<S, R> = Task<S, R> Function(S state);
 
 class TaskManagerImpl extends TaskManager {
+  TaskManagerImpl({required super.identifier}) {
+    StorageManager._loadTasks(identifier).listen((event) {
+      add(event);
+    });
+  }
+
   final Map<String, TaskBuilder> _builders = {};
 
   @override
@@ -94,13 +110,16 @@ class TaskManagerImpl extends TaskManager {
     //   handlerTaskResult(task.id, TaskResult.error(error));
     // });
 
-    task._status = TaskStatus.running;
-    task._setFlag(TaskFlag.none);
-
-    Future.microtask(() => task.run()).then((value) {
-      handlerTaskResult(task.id, value);
-    }).onError((error, stackTrace) {
-      handlerTaskResult(task.id, TaskResult.error(error));
-    });
+    Future.microtask(
+      () => task.run(),
+    ).then(
+      (value) {
+        handlerTaskResult(task.id, value);
+      },
+    ).onError(
+      (error, stackTrace) {
+        handlerTaskResult(task.id, TaskResult.error(error));
+      },
+    );
   }
 }

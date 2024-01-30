@@ -114,7 +114,7 @@ class _TaskListItem extends StatelessWidget {
                   top: 0,
                   bottom: 0,
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 100),
+                    duration: const Duration(milliseconds: 1000),
                     color: Colors.green,
                     width: constraints.maxWidth * (60 - task.data) / 60,
                   ),

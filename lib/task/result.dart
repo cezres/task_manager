@@ -1,6 +1,6 @@
-class TaskResult<Data, Result> {
+class TaskResult<Data, Value> {
   final Data? data;
-  final Result? result;
+  final Value? result;
   final dynamic error;
   final TaskResultType type;
 
@@ -19,7 +19,7 @@ class TaskResult<Data, Result> {
     return TaskResult(type: TaskResultType.canceled, data: data);
   }
 
-  factory TaskResult.completed([Data? data, Result? result]) {
+  factory TaskResult.completed([Data? data, Value? result]) {
     return TaskResult(
         type: TaskResultType.completed, data: data, result: result);
   }

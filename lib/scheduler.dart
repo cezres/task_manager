@@ -8,6 +8,24 @@ enum TaskIdentifierStrategy {
   cancelOtherTasks,
 }
 
+abstract class Schedulable {
+  String get id;
+
+  String? get identifier;
+
+  TaskPriority get priority;
+
+  void _changePriority(TaskPriority value);
+}
+
+// class Scheduler {
+//   //
+// }
+
+// class Worker {
+//   //
+// }
+
 abstract class TaskScheduler {
   int get maximumNumberOfConcurrencies;
 
@@ -29,7 +47,13 @@ abstract class TaskScheduler {
 
   void cancelAll();
 
+  void changePriority(Task task, TaskPriority priority);
+
   Future<void> waitForAllTasksToComplete();
+
+  T getReusedObject<T>(String key, Task task) {
+    throw UnimplementedError();
+  }
 }
 
 abstract class TaskSchedulerImpl extends TaskScheduler {
@@ -62,17 +86,17 @@ abstract class TaskSchedulerImpl extends TaskScheduler {
     }
     if (value > _maximumNumberOfConcurrencies) {
       _maximumNumberOfConcurrencies = value;
-      _tryHandleNextTask();
+      _processNextTask();
     } else {
       _maximumNumberOfConcurrencies = value;
-      // TODO: 取消多余的任务，优先取消支持取消且优先级最低的任务
+      // Cancel redundant tasks, cancel tasks with the lowest priority that support cancellation first
     }
   }
 
   @override
   void add(Task task) {
-    if (task._manager != null) {
-      throw ArgumentError('Task already added to a manager ${task._manager}');
+    if (task._scheduler != null) {
+      throw ArgumentError('Task already added to a manager ${task._scheduler}');
     }
 
     switch (task.status) {
@@ -82,13 +106,13 @@ abstract class TaskSchedulerImpl extends TaskScheduler {
           _completer = Completer<void>();
         }
 
-        task._manager = this;
+        task._setScheduler(this);
 
         if (_runningTasks.length < maximumNumberOfConcurrencies) {
           // Current number of running tasks is less than the maximum number of concurrencies
           // Execute task directly
           _runningTasks[task.id] = task;
-          executeTask(task);
+          _executeTask(task);
         } else {
           // Current number of running tasks is greater than or equal to the maximum number of concurrencies
           // Add task to pending queue
@@ -98,7 +122,7 @@ abstract class TaskSchedulerImpl extends TaskScheduler {
         _notify();
         break;
       case TaskStatus.paused:
-        task._manager = this;
+        task._scheduler = this;
 
         // Task already paused, add task to paused queue
         _pausedTasks[task.id] = task;
@@ -116,7 +140,7 @@ abstract class TaskSchedulerImpl extends TaskScheduler {
       case TaskStatus.running:
         // Send cancel message to task
         // Let the task handle the cancel logic by itself
-        task._setFlag(TaskFlag.cancel);
+        task._changeStatus(null, TaskFlag.cancel);
         break;
       case TaskStatus.pending:
         // Remove task from pending queue
@@ -156,7 +180,7 @@ abstract class TaskSchedulerImpl extends TaskScheduler {
       case TaskStatus.running:
         // Send pause message to task
         // Let the task handle the pause logic by itself
-        task._setFlag(TaskFlag.pause);
+        task._changeStatus(null, TaskFlag.pause);
         break;
       case TaskStatus.pending:
         // Remove task from pending queue
@@ -179,25 +203,41 @@ abstract class TaskSchedulerImpl extends TaskScheduler {
       _pausedTasks.remove(task.id);
 
       /// Update task status to pending
-      task._status = TaskStatus.pending;
-      task._setFlag(TaskFlag.none);
+      task._changeStatus(TaskStatus.pending, TaskFlag.none);
 
       /// Add task to pending queue
       _pendingTasks.add(task);
 
       /// Try to handle next task
-      if (!_tryHandleNextTask()) {
+      if (!_processNextTask()) {
         _notify();
       }
     }
   }
 
   @override
+  void changePriority(Task task, TaskPriority priority) {
+    switch (task.status) {
+      case TaskStatus.running:
+      case TaskStatus.canceled:
+      case TaskStatus.completed:
+      case TaskStatus.error:
+        break;
+      case TaskStatus.pending:
+        _pendingTasks.remove(task);
+        task._changePriority(priority);
+        _pendingTasks.add(task);
+        break;
+      case TaskStatus.paused:
+        task._changePriority(priority);
+        break;
+    }
+  }
+
+  @override
   Future<void> waitForAllTasksToComplete() => _completer.future;
 
-  /// Try to handle next task
-  /// If the number of running tasks is less than the maximum number of concurrencies, take out a task from the pending queue and execute it
-  bool _tryHandleNextTask() {
+  bool _processNextTask() {
     if (_pendingTasks.isEmpty) {
       if (_runningTasks.isEmpty && _pausedTasks.isEmpty) {
         _completer.complete();
@@ -209,11 +249,11 @@ abstract class TaskSchedulerImpl extends TaskScheduler {
       return false;
     }
 
-    final task = _pendingTasks.removeFirst();
+    final task = _pendingTasks.nextWhere((task) => true);
     if (task != null) {
       _runningTasks[task.id] = task;
 
-      executeTask(task);
+      _executeTask(task);
 
       _notify();
 
@@ -243,13 +283,18 @@ abstract class TaskSchedulerImpl extends TaskScheduler {
     }
 
     /// Try to handle next task
-    if (!_tryHandleNextTask()) {
+    if (!_processNextTask()) {
       _notify();
     }
   }
 
   void _notify() {
     _controller.add(this);
+  }
+
+  void _executeTask(Task task) {
+    task._changeStatus(TaskStatus.running, TaskFlag.none);
+    executeTask(task);
   }
 }
 
@@ -261,11 +306,7 @@ class _PendingTaskQueue {
   final Map<TaskPriority, List<Task>> tasksOfPriority = {};
 
   operator [](TaskPriority priority) {
-    final list = tasksOfPriority[priority];
-    if (list != null) {
-      return list;
-    }
-    return [];
+    return tasksOfPriority[priority] ?? [];
   }
 
   List<Task> toList() {
@@ -332,5 +373,33 @@ class _PendingTaskQueue {
     }
 
     return removeFirst();
+  }
+
+  Task? nextWhere(bool Function(Task task) test) {
+    if (priorities.isEmpty) {
+      return null;
+    }
+
+    for (var priorityIndex = 0;
+        priorityIndex < priorities.length;
+        priorityIndex++) {
+      final priority = priorities[priorityIndex];
+      final list = tasksOfPriority[priority];
+      if (list == null) {
+        continue;
+      }
+      for (var taskIndex = 0; taskIndex < list.length; taskIndex++) {
+        final task = list[taskIndex];
+        if (test(task)) {
+          list.removeAt(taskIndex);
+          if (list.isEmpty) {
+            tasksOfPriority.remove(priority);
+            priorities.removeAt(priorityIndex);
+          }
+          return task;
+        }
+      }
+    }
+    return null;
   }
 }

@@ -1,20 +1,90 @@
 part of '../task_manager.dart';
 
-abstract class _PrivateTask<Data, Result> {
-  final String id = generateIncrementalId('task');
+// abstract class Execution<Data, R> {
+//   TaskFlag _flag = TaskFlag.none;
 
-  TaskStatus _status = TaskStatus.pending;
+//   bool get shouldCancel => _flag == TaskFlag.cancel;
 
-  TaskFlag _flag = TaskFlag.none;
-  TaskFlag get flag => _flag;
+//   bool get shouldPause => _flag == TaskFlag.pause;
 
-  TaskPriority _priority = TaskPriority.normal;
+//   Data get data;
 
-  final Completer<Result> _completer = Completer<Result>();
+//   void emit(Data data);
 
-  TaskScheduler? _manager;
+//   FutureOr<R> run();
+// }
 
-  final _controller = StreamController<Task<Data, Result>>.broadcast();
+abstract class Task<D, R> {
+  Task(D initialData, {String? identifier})
+      : _data = initialData,
+        _identifier = identifier;
+
+  String get id => _id;
+
+  String? get identifier => _identifier;
+
+  TaskPriority get priority => _priority;
+
+  bool get shouldCancel => _flag == TaskFlag.cancel;
+
+  bool get shouldPause => _flag == TaskFlag.pause;
+
+  TaskStatus get status => _status;
+
+  D get data => _data;
+
+  Stream<Task<D, R>> get stream => _controller.stream;
+
+  FutureOr<TaskResult<D, R>> run();
+
+  @protected
+  void emit(D data) {
+    _data = data;
+    _controller.add(this);
+    _storageTaskStatus();
+  }
+
+  void cancel() {
+    if (status == TaskStatus.running ||
+        status == TaskStatus.pending ||
+        status == TaskStatus.paused) {
+      if (_scheduler != null) {
+        _scheduler?.cancel(this);
+      } else {
+        _changeStatus(TaskStatus.canceled, TaskFlag.none);
+      }
+    }
+  }
+
+  void pause() {
+    if (status == TaskStatus.running || status == TaskStatus.pending) {
+      if (_scheduler != null) {
+        _scheduler?.pause(this);
+      } else {
+        _changeStatus(TaskStatus.paused, TaskFlag.none);
+      }
+    }
+  }
+
+  void resume() {
+    if (status == TaskStatus.paused) {
+      if (_scheduler != null) {
+        _scheduler?.resume(this);
+      } else {
+        _changeStatus(TaskStatus.pending, TaskFlag.none);
+      }
+    }
+  }
+
+  void changePriority(TaskPriority priority) {
+    if (_scheduler != null) {
+      _scheduler?.changePriority(this, priority);
+    } else {
+      _changePriority(priority);
+    }
+  }
+
+  Future<R> wait() => _completer.future;
 
   @override
   int get hashCode => id.hashCode;
@@ -26,129 +96,150 @@ abstract class _PrivateTask<Data, Result> {
     }
     return super == other;
   }
-}
 
-abstract class Task<Data, Result> extends _PrivateTask<Data, Result> {
-  Task(Data initialData, {this.identifier}) : data = initialData;
-
-  final String? identifier;
-
-  Data data;
-
-  /// 任务状态
-  TaskStatus get status => _status;
-
-  /// 任务标记
-  bool get shouldCancel => _flag == TaskFlag.cancel;
-  bool get shouldPause => _flag == TaskFlag.pause;
-
-  /// 任务优先级
-  TaskPriority get priority => _priority;
-  set priority(TaskPriority value) {
-    // TODO: 向任务调度器发送任务优先级变更的消息，再有调度器决定是否变更优先级
-    // 正在运行的任务优先级会直接变更但不会影响任务调度器的优先级，如果当前任务被暂停后恢复，那么优先级变更会影响任务调度器的优先级
-    throw UnimplementedError();
+  @mustCallSuper
+  void decodeMetadata(dynamic json) {
+    _identifier = json['identifier'];
+    switch (TaskStatus.values[json['status']]) {
+      case TaskStatus.running:
+        _status = TaskStatus.pending;
+        break;
+      default:
+        _status = TaskStatus.paused;
+    }
+    _priority = TaskPriority.values[json['priority']];
   }
 
-  Stream<Task<Data, Result>> get stream => _controller.stream;
+  @mustCallSuper
+  Map<String, dynamic> encodeMetadata() {
+    return {
+      'identifier': _identifier,
+      'status': _status.index,
+      'priority': _priority.index,
+    };
+  }
 
-  FutureOr<TaskResult<Data, Result>> run();
+  /// Private
+  String _id = generateIncrementalId('task');
+  String? _identifier;
+  TaskPriority _priority = TaskPriority.normal;
+  TaskStatus _status = TaskStatus.pending;
+  TaskFlag _flag = TaskFlag.none;
+  D _data;
+  TaskScheduler? _scheduler;
+  final _completer = Completer<R>();
+  final _controller = StreamController<Task<D, R>>.broadcast();
+}
 
-  void _setFlag(TaskFlag flag) {
-    if (flag != _flag) {
-      _flag = flag;
-      _controller.add(this);
+extension TaskExtension<Data, Result> on Task<Data, Result> {
+  void _setScheduler(TaskScheduler value) {
+    if (_scheduler != value) {
+      _scheduler = value;
+      StorageManager._saveTask(this);
     }
   }
 
-  @protected
-  void emit(Data data) {
-    this.data = data;
+  void _changePriority(TaskPriority priority) {
+    _priority = priority;
     _controller.add(this);
   }
 
-  void cancel() {
-    if (status == TaskStatus.running ||
-        status == TaskStatus.pending ||
-        status == TaskStatus.paused) {
-      if (_manager != null) {
-        _manager?.cancel(this);
-      } else {
-        _flag = TaskFlag.none;
-        _status = TaskStatus.canceled;
-      }
+  void _changeStatus([TaskStatus? status, TaskFlag? flag]) {
+    if (status != null) {
+      _status = status;
     }
-  }
-
-  void pause() {
-    if (status == TaskStatus.running || status == TaskStatus.pending) {
-      if (_manager != null) {
-        _manager?.pause(this);
-      } else {
-        _flag = TaskFlag.none;
-        _status = TaskStatus.paused;
-      }
+    if (flag != null) {
+      _flag = flag;
     }
+    _controller.add(this);
   }
-
-  void resume() {
-    if (status == TaskStatus.paused) {
-      if (_manager != null) {
-        _manager?.resume(this);
-      } else {
-        _flag = TaskFlag.none;
-        _status = TaskStatus.pending;
-      }
-    }
-  }
-
-  Future<Result> wait() => _completer.future;
 
   void _handlerResult(TaskResult<Data, Result> result) {
-    if (_status != TaskStatus.running) {
+    if (_completer.isCompleted) {
       return;
     }
-
-    _flag = TaskFlag.none;
-
     switch (result.type) {
       case TaskResultType.paused:
+        _flag = TaskFlag.none;
         _status = TaskStatus.paused;
         if (result.data != null) {
-          data = result.data as Data;
+          _data = result.data as Data;
         }
         break;
       case TaskResultType.canceled:
+        _flag = TaskFlag.none;
         _status = TaskStatus.canceled;
         if (result.data != null) {
-          data = result.data as Data;
+          _data = result.data as Data;
         }
         break;
       case TaskResultType.completed:
         _status = TaskStatus.completed;
         if (result.data != null) {
-          data = result.data as Data;
+          _data = result.data as Data;
         }
         _completer.complete(result.result);
         break;
       case TaskResultType.error:
         _status = TaskStatus.error;
         if (result.data != null) {
-          data = result.data as Data;
+          _data = result.data as Data;
         }
         _completer.completeError(result.error);
         break;
       default:
     }
+    _storageTaskStatus();
     _controller.add(this);
+  }
+
+  void _storageTaskStatus() {
+    switch (_status) {
+      case TaskStatus.canceled:
+      case TaskStatus.completed:
+      case TaskStatus.error:
+        StorageManager._deleteTask(this);
+        break;
+      case TaskStatus.paused:
+      case TaskStatus.pending:
+      case TaskStatus.running:
+        StorageManager._saveTask(this);
+        break;
+    }
   }
 }
 
-mixin SerializableTask {
-  Map<String, dynamic> toJson();
+extension TaskReusedObjects on Task {
+  T getReusedObject<T>(String key) {
+    if (_scheduler != null) {
+      return _scheduler!.getReusedObject(key, this);
+    }
+    throw UnimplementedError();
+  }
 
-  void fromJson(Map<String, dynamic> json);
+  T buildReusedObject<T>(String key) {
+    throw UnimplementedError();
+  }
 }
+
+// mixin StorableMixin<Data> {
+//   String get id;
+
+//   void decodeMetadata(dynamic json);
+
+//   dynamic encodeMetadata();
+
+//   Data fromJson(Map<String, dynamic> json);
+//   Map<String, dynamic> toJson(Data data);
+// }
+
+// mixin SerializableTask {
+//   String get id;
+
+//   Map<String, dynamic> toJson();
+
+//   void fromJson(Map<String, dynamic> json);
+// }
 
 mixin ReusedObjectTaskMixin {
   /// 在DEBUG模式下，任务调度器会检查复用对象的类型是否一致，如果不一致会抛出异常。
@@ -175,12 +266,10 @@ enum TaskStatus {
   error,
 }
 
-/// 任务标记
-/// none: 无标记
-/// cancel: 取消
-/// pause: 暂停
 enum TaskFlag {
   none,
+  // Should cancel, handled by the task itself
   cancel,
+  // Should pause, handled by the task itself
   pause,
 }
