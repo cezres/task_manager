@@ -20,7 +20,9 @@ jobs:
           channel: "stable"
 
       - name: 🌍 Enable Web
-        run: flutter config --enable-web
+        run: |
+          cd ./example
+          flutter config --enable-web
 
       - name: 📦 Get packages
         run: flutter pub get
