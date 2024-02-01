@@ -27,10 +27,14 @@ jobs:
           flutter config --enable-web
 
       - name: 📦 Get packages
-        run: flutter pub get
+        run: |
+          cd ./example
+          flutter pub get
 
       - name: 🏭 Build Web Application
-        run: flutter build web --release
+        run: |
+          cd ./example
+          flutter build web --release
 
       - name: Checkout Destination Repository
         uses: actions/checkout@v2
@@ -43,7 +47,7 @@ jobs:
         run: |
           # 删除 destination_repo 目录下除了 .git 以外的所有文件
           find destination_repo -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} \;
-          cp -r build/web/* destination_repo/
+          cp -r example/build/web/* destination_repo/
 
       - name: Commit and Push
         run: |
