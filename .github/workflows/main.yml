@@ -4,9 +4,11 @@ name: On Website Deploy
     branches:
       - "main"
     paths:
+      - 'example/lib/**'
+      - 'example/web/**'
       - 'lib/**'
-      - 'web/**'
       - 'pubspec.yaml'
+      - '.github/workflows/main.yml'
 
 jobs:
   build_and_deploy_web:
@@ -34,7 +36,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: flutter-task-manager/flutter-task-manager.github.io
-          token: ${{ secrets.PAT }}  # 使用你的 PAT
+          token: ${{ secrets.PAT }}
           path: 'destination_repo'
 
       - name: Copy Files to Destination Repository
