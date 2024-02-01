@@ -2,6 +2,13 @@
 
 Task Manager is a tool for managing and scheduling task execution, designed to simplify and optimize the execution of asynchronous tasks.
 
+* [Features](#features)
+* [Getting started](#getting-started)
+* [Usage](#usage)
+  * [Create a task](#create-a-task)
+  * [Pause or cancel a task](#pause-or-cancel-a-task)
+  * [Create hydrated task](#create-hydrated-task)
+
 ## Features
 
 - Supports canceling and pausing ongoing tasks
