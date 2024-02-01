@@ -2,7 +2,7 @@
 
 Task Manager is a tool for managing and scheduling task execution, designed to simplify and optimize the execution of asynchronous tasks.
 
-*[Task Manager Example](https://flutter-task-manager.github.io/)*
+*[Task Manager Example Web Page](https://flutter-task-manager.github.io/)*
 
 * [Features](#features)
 * [Getting started](#getting-started)
