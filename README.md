@@ -17,6 +17,7 @@ Task Manager is a tool for managing and scheduling task execution, designed to s
 - Cancel task
 - Task priority
 - Hydrated task
+- Isolate Task
 
 ## Getting started
 
@@ -123,3 +124,13 @@ void example() {
   StorageManager.registerOperation(() => const ExampleHydratedOperation());
 }
 ```
+
+
+<details>
+  <summary>More...</summary>
+  test
+  #### test
+  ```dart
+  final test = 'test';
+  ```
+</details>
