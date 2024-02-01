@@ -1,21 +1,12 @@
 import 'package:example/countdown_operation.dart';
 import 'package:example/storage/custom_storage.dart';
 import 'package:example/task_manager_view.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:task_manager/task_manager.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
   StorageManager.registerStorage(CustomStorage.adapter());
   StorageManager.registerOperation(() => const CountdownOperation());
-
-  if (!kIsWeb) {
-    final directory = await getApplicationDocumentsDirectory();
-    debugPrint('directory: ${directory.path}');
-  }
 
   runApp(const MyApp());
 }
@@ -63,9 +54,55 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  void _showMaxConcurrenciesDialog() {
+    final controller =
+        TextEditingController(text: worker.maxConcurrencies.toString());
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Max Concurrencies"),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text);
+              if (value != null) {
+                worker.maxConcurrencies = value;
+              }
+              Navigator.pop(context);
+            },
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text("Task Manager Example"),
+        centerTitle: true,
+        actions: [
+          IconButton.outlined(
+            onPressed: _showMaxConcurrenciesDialog,
+            icon: const Icon(Icons.settings),
+          ),
+          const SizedBox(
+            width: 24,
+          )
+        ],
+      ),
       body: TaskManagerView(worker: worker),
       floatingActionButton: FloatingActionButton(
         onPressed: _addTasks,

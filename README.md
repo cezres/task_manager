@@ -1,39 +1,115 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# Task Manager
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/guides/libraries/writing-package-pages).
-
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-library-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/developing-packages).
--->
-
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+Task Manager is a tool for managing and scheduling task execution, designed to simplify and optimize the execution of asynchronous tasks.
 
 ## Features
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+- Supports canceling and pausing ongoing tasks
+- Allows adjustment of task priority
+- Enables persistent storage of task states, supporting continued execution after application interruption and restart
 
 ## Getting started
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+Add the following dependencies to your `pubspec.yaml file:
+
+```
+task_manager:
+    git:
+        url: https://github.com/cezres/task_manager.git
+        ref: main
+```
 
 ## Usage
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
+
+### Create a task
+
+The following example demonstrates how to create a simple task:
 
 ```dart
-const like = 'sample';
+class ExampleOperation extends Operation<int, String> {
+  const ExampleOperation();
+
+  @override
+  FutureOr<Result<int, String>> run(OperationContext<int, void> context) async {
+    await Future.delayed(const Duration(seconds: 1));
+    return Result.completed('Hello World - ${context.data}');
+  }
+}
+
+void example() async {
+  // Create a worker
+  final worker = Worker();
+  worker.maxConcurrencies = 2;
+  // Add a task
+  final task = worker.addTask(const ExampleOperation(), 1);
+  // Wait for the task to complete
+  await task.wait(); // Result.completed('Hello World - 1')
+}
 ```
 
-## Additional information
+### Pause or cancel a task
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+For tasks in progress, you need to check if the operation should be paused or canceled, as shown below:
+
+```dart
+class CountdownOperation extends Operation<int, void> {
+  const CountdownOperation();
+
+  @override
+  FutureOr<Result<int, void>> run(OperationContext<int, void> context) async {
+    int data = context.data;
+    while (data > 0) {
+      await Future.delayed(const Duration(milliseconds: 1000));
+      data -= 1;
+
+      /// Check if the operation should be paused or canceled
+      if (context.shouldPause) {
+        return Result.paused(data);
+      } else if (context.shouldCancel) {
+        return Result.canceled();
+      } else {
+        context.emit(data);
+      }
+    }
+    return Result.completed();
+  }
+}
+
+void example() {
+  task.cancel();
+  task.pause();
+  task.resume();
+}
+```
+
+### Create hydrated task
+
+To create a hydrated task, refer to the following code:
+
+```dart
+class ExampleHydratedOperation extends HydratedOperation<int, void> {
+  const ExampleHydratedOperation();
+
+  @override
+  FutureOr<Result<int, void>> run(OperationContext<int, void> context) async {
+    await Future.delayed(const Duration(seconds: 1));
+    return Result.completed('Hello World - ${context.data}');
+  }
+
+  @override
+  toJson(int data) {
+    return data;
+  }
+
+  @override
+  int fromJson(json) {
+    return json;
+  }
+}
+
+void example() {
+  StorageManager.registerStorage(CustomStorage());
+  StorageManager.registerOperation(() => const ExampleHydratedOperation());
+}
+```

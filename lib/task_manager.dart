@@ -4,23 +4,23 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
-import 'package:task_manager/task/task_priority.dart';
-import 'package:task_manager/utils/generate_incremental_id.dart';
-import 'package:task_manager/utils/priority_queue.dart';
+import 'package:task_manager/src/task/task_priority.dart';
+import 'package:task_manager/src/utils/generate_incremental_id.dart';
+import 'package:task_manager/src/utils/priority_queue.dart';
 
-part 'task/task_impl.dart';
-part 'task/hydrated_task_impl.dart';
-part 'task/result.dart';
+part 'src/task/task_impl.dart';
+part 'src/task/hydrated_task_impl.dart';
+part 'src/task/result.dart';
 
-part 'operation/operation_context_impl.dart';
-part 'operation/isolate_operation_context_impl.dart';
+part 'src/operation/operation_context_impl.dart';
+part 'src/operation/isolate_operation_context_impl.dart';
 
-part 'scheduling/scheduler.dart';
-part 'scheduling/worker.dart';
-part 'scheduling/worker_isolate.dart';
+part 'src/scheduling/scheduler.dart';
+part 'src/scheduling/worker.dart';
+part 'src/scheduling/worker_isolate.dart';
 
-part 'storage/storage.dart';
-part 'storage/storage_manager.dart';
+part 'src/storage/storage.dart';
+part 'src/storage/storage_manager.dart';
 
 abstract class OperationContext<D, R> {
   String get id;

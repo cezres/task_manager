@@ -1,4 +1,4 @@
-part of '../task_manager.dart';
+part of '../../task_manager.dart';
 
 class TaskImpl<D, R, O extends Operation<D, R>> extends Task<D, R>
     with PriorityMixin {

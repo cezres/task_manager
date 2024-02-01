@@ -1,4 +1,4 @@
-part of '../task_manager.dart';
+part of '../../task_manager.dart';
 
 abstract class Storage {
   const Storage();

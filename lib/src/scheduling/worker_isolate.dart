@@ -1,4 +1,4 @@
-part of '../task_manager.dart';
+part of '../../task_manager.dart';
 
 class IsolateWorker extends WorkerImpl {
   IsolateWorker() : super._('IsolateWorker');

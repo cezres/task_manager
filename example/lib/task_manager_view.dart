@@ -11,27 +11,34 @@ class TaskManagerView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        _buildExpandedTaskList(
-          context,
-          title: 'Running',
-          color: Colors.green[300],
-          tasks: (worker) => worker.runningTasks,
-        ),
-        const VerticalDivider(width: 1, thickness: 1),
-        _buildExpandedTaskList(
-          context,
-          title: 'Pending',
-          color: Colors.orange[300],
-          tasks: (worker) => worker.pendingTasks,
-        ),
-        const VerticalDivider(width: 1, thickness: 1),
-        _buildExpandedTaskList(
-          context,
-          title: 'Pasued',
-          color: Colors.blue[300],
-          tasks: (worker) => worker.pausedTasks,
+        const Divider(height: 1, thickness: 1),
+        Expanded(
+          child: Row(
+            children: [
+              _buildExpandedTaskList(
+                context,
+                title: 'Running',
+                color: Colors.green[300],
+                tasks: (worker) => worker.runningTasks,
+              ),
+              const VerticalDivider(width: 1, thickness: 1),
+              _buildExpandedTaskList(
+                context,
+                title: 'Pending',
+                color: Colors.orange[300],
+                tasks: (worker) => worker.pendingTasks,
+              ),
+              const VerticalDivider(width: 1, thickness: 1),
+              _buildExpandedTaskList(
+                context,
+                title: 'Pasued',
+                color: Colors.blue[300],
+                tasks: (worker) => worker.pausedTasks,
+              ),
+            ],
+          ),
         ),
       ],
     );

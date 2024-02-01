@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:task_manager/utils/priority_queue.dart';
+import 'package:task_manager/src/utils/priority_queue.dart';
 
 void main() {
   test('priority_queue', () {

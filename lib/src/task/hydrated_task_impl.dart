@@ -1,4 +1,4 @@
-part of '../task_manager.dart';
+part of '../../task_manager.dart';
 
 class HydratedTaskImpl<D, R, O extends HydratedOperation<D, R>>
     extends TaskImpl<D, R, O> {

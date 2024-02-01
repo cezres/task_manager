@@ -1,4 +1,4 @@
-part of '../task_manager.dart';
+part of '../../task_manager.dart';
 
 class IsolateOperationContextImpl<D, R> extends OperationContextImpl<D, R> {
   IsolateOperationContextImpl({
