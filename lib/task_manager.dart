@@ -1,125 +1,126 @@
 library task_manager;
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart';
-import 'package:task_manager/isolate/background_isolate.dart';
 import 'package:task_manager/task/task_priority.dart';
-import 'package:task_manager/task/result.dart';
 import 'package:task_manager/utils/generate_incremental_id.dart';
+import 'package:task_manager/utils/priority_queue.dart';
 
-part 'scheduler.dart';
-part 'task/task.dart';
-part 'task/isolate_task.dart';
+part 'task/task_impl.dart';
+part 'task/hydrated_task_impl.dart';
+part 'task/result.dart';
+
+part 'operation/operation_context_impl.dart';
+part 'operation/isolate_operation_context_impl.dart';
+
+part 'scheduling/scheduler.dart';
+part 'scheduling/worker.dart';
+part 'scheduling/worker_isolate.dart';
 
 part 'storage/storage.dart';
 part 'storage/storage_manager.dart';
-part 'storage/default_desktop_and_mobile_storage.dart';
-part 'storage/default_web_storage.dart';
 
-abstract class TaskManager extends TaskSchedulerImpl {
-  TaskManager({required this.identifier}) {
-    // SchedulerBinding.instance!.addPostFrameCallback((timeStamp) {
-    //   _executeWaitingTasks();
-    // });
-  }
+// part 'isolate/background_isolate.dart';
+// part 'isolate/background_isolate_task_result.dart';
+// part 'isolate/background_isolate_manager.dart';
 
-  final String identifier;
+// abstract class TaskManager extends TaskSchedulerImpl {
+//   TaskManager({required this.identifier}) {
+//     // SchedulerBinding.instance!.addPostFrameCallback((timeStamp) {
+//     //   _executeWaitingTasks();
+//     // });
+//   }
+// }
 
-  void registerSerializableTask<S, R>(
-      String name, Task<S, R> Function(S state) builder);
+abstract class OperationContext<D, R> {
+  String get id;
 
-  void register<D, R, T extends Task<D, R>>({
-    String? name,
-    required T Function(D data) builder,
-  }) {
-    T.toString();
-  }
+  String? get identifier;
 
-  Task<S, R> buildSerializableTask<S, R>(String name, S initialState);
+  TaskPriority get priority;
 
-  /// 注册定时任务, 任务调度器会在指定的时间后执行任务
-  void registerScheduledTask<S, R>(
-    String name,
-    Duration duration,
-    Task<S, R> Function(S state) builder,
-  ) {
-    // registerSerializableTask(
-    //   name,
-    //   (state) => ScheduledTask<S, R>(state, duration, builder),
-    // );
-  }
+  TaskStatus get status;
 
-  /// 注册重复任务, 任务调度器会在指定的时间间隔后执行任务
-  void registerRepeatedTask<S, R>(
-    String name,
-    Duration duration,
-    Task<S, R> Function(S state) builder,
-  ) {
-    // registerSerializableTask(
-    //   name,
-    //   (state) => RepeatedTask<S, R>(state, duration, builder),
-    // );
-  }
+  D get data;
 
-  @override
-  String toString() {
-    return 'TaskManager($identifier)';
-  }
+  bool get shouldCancel;
+
+  bool get shouldPause;
+
+  void emit(D data);
 }
 
-typedef TaskBuilder<S, R> = Task<S, R> Function(S state);
+abstract class Operation<D, R> extends _Operation<D, R> {
+  const Operation();
 
-class TaskManagerImpl extends TaskManager {
-  TaskManagerImpl({required super.identifier}) {
-    StorageManager._loadTasks(identifier).listen((event) {
-      add(event);
-    });
-  }
+  String get name => runtimeType.toString();
 
-  final Map<String, TaskBuilder> _builders = {};
+  FutureOr<Result<D, R>> run(OperationContext<D, R> context);
+}
 
-  @override
-  void registerSerializableTask<S, R>(String name, TaskBuilder<S, R> builder) {
-    _builders[name] = builder as TaskBuilder;
-  }
+mixin HydratedOperationMixin<D, R> {
+  D fromJson(dynamic json);
+  dynamic toJson(D data);
+}
 
-  @override
-  Task<S, R> buildSerializableTask<S, R>(String name, S initialState) {
-    final builder = _builders[name];
-    if (builder == null) {
-      throw ArgumentError('No task builder found for $name');
-    }
-    return builder(initialState) as Task<S, R>;
-  }
+abstract class HydratedOperation<D, R> extends Operation<D, R>
+    with HydratedOperationMixin<D, R> {
+  const HydratedOperation();
+}
 
-  @override
-  @protected
-  void executeTask(Task task) {
-    // PaintingBinding.instance.scheduleTask(
-    //   () {
-    //     return task.run();
-    //   },
-    //   Priority.idle,
-    // ).then((value) {
-    //   handlerTaskResult(task.id, value);
-    // }).onError((error, stackTrace) {
-    //   handlerTaskResult(task.id, TaskResult.error(error));
-    // });
+abstract class Task<D, R> {
+  String get name;
 
-    Future.microtask(
-      () => task.run(),
-    ).then(
-      (value) {
-        handlerTaskResult(task.id, value);
-      },
-    ).onError(
-      (error, stackTrace) {
-        handlerTaskResult(task.id, TaskResult.error(error));
-      },
-    );
-  }
+  String get id;
+
+  String? get identifier;
+
+  TaskPriority get priority;
+
+  TaskStatus get status;
+
+  D get data;
+
+  bool get shouldCancel;
+
+  bool get shouldPause;
+
+  Stream<Task<D, R>> get stream;
+
+  Future<R> wait();
+
+  void cancel();
+
+  void pause();
+
+  void resume();
+
+  void changePriority(TaskPriority priority);
+}
+
+abstract class Worker {
+  Worker._();
+  factory Worker() => WorkerImpl();
+
+  int get maxConcurrencies;
+  set maxConcurrencies(int value);
+
+  Stream<Worker> get stream;
+
+  int get length;
+
+  List<Task> get runningTasks;
+  List<Task> get pendingTasks;
+  List<Task> get pausedTasks;
+
+  Task<D, R> addTask<D, R>(Operation<D, R> operation, D initialData,
+      {bool isPaused = false});
+
+  Future<void> wait();
+
+  void clear();
+
+  Stream<Task> loadTasksWithStorage();
 }

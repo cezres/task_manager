@@ -1,31 +1,21 @@
-import 'package:example/countdown_task.dart';
+import 'package:example/countdown_operation.dart';
+import 'package:example/storage/custom_storage.dart';
 import 'package:example/task_manager_view.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:task_manager/task_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  RendererBinding.instance.addPostFrameCallback((timeStamp) {
-    debugPrint('post frame callback: $timeStamp');
-  });
+  StorageManager.registerStorage(CustomStorage.adapter());
+  StorageManager.registerOperation(() => const CountdownOperation());
 
-  StorageManager.registerTask<int, CountdownTask>(
-    encode: (data) {
-      return data;
-    },
-    decode: (json) {
-      return json;
-    },
-    create: (data) {
-      return CountdownTask(data);
-    },
-  );
-
-  final directory = await getApplicationDocumentsDirectory();
-  debugPrint('directory: ${directory.path}');
+  if (!kIsWeb) {
+    final directory = await getApplicationDocumentsDirectory();
+    debugPrint('directory: ${directory.path}');
+  }
 
   runApp(const MyApp());
 }
@@ -57,28 +47,28 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final TaskManager manager = TaskManagerImpl(identifier: 'default');
+  final Worker worker = Worker();
 
   @override
   void initState() {
     super.initState();
 
-    manager.maximumNumberOfConcurrencies = 2;
+    worker.maxConcurrencies = 2;
+    worker.loadTasksWithStorage();
   }
 
-  void _incrementCounter() {
+  void _addTasks() {
     for (var i = 0; i < 1; i++) {
-      manager.add(CountdownTask(60));
+      worker.addTask(const CountdownOperation(), 60);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: TaskManagerView(manager: manager),
+      body: TaskManagerView(worker: worker),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
+        onPressed: _addTasks,
         child: const Icon(Icons.add),
       ),
     );

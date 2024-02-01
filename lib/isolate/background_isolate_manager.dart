@@ -1,65 +1,81 @@
-import 'dart:async';
+// part of '../task_manager.dart';
 
-import 'package:flutter/foundation.dart';
-import 'package:task_manager/isolate/background_isolate.dart';
+// class BackgroundIsolateManager {
+//   BackgroundIsolateManager._();
 
-class BackgroundIsolateManager {
-  BackgroundIsolateManager({
-    required this.identifier,
-    this.maximumNumberOfConcurrencies = 4,
-  });
+//   static BackgroundIsolateManager? _manager;
 
-  final String identifier;
+//   static BackgroundIsolateManager get manager =>
+//       _manager ??= BackgroundIsolateManager._();
 
-  final int maximumNumberOfConcurrencies;
+//   int _maximumNumberOfConcurrencies = 4;
 
-  final _controller = StreamController<void>.broadcast();
+//   int get maximumNumberOfConcurrencies => _maximumNumberOfConcurrencies;
 
-  final Map<String, BackgroundIsolate> _running = {};
-  final Set<BackgroundIsolate> _idle = {};
+//   set maximumNumberOfConcurrencies(int value) {
+//     if (value < 1) {
+//       throw ArgumentError.value(value, 'maximumNumberOfConcurrencies');
+//     }
+//     if (value > _maximumNumberOfConcurrencies) {
+//       _maximumNumberOfConcurrencies = value;
+//       _idleController.add(null);
+//     } else {
+//       _maximumNumberOfConcurrencies = value;
+//     }
+//   }
 
-  StreamSubscription<void> listenIdleIsolate(VoidCallback callback) {
-    return _controller.stream.listen((event) => callback());
-  }
+//   final _idleController = StreamController<void>.broadcast();
 
-  bool hasIdleIsolate() {
-    if (_idle.isNotEmpty) {
-      return true;
-    }
-    if (_running.length < maximumNumberOfConcurrencies) {
-      return true;
-    }
-    return false;
-  }
+//   final Map<String, BackgroundIsolate> _running = {};
+//   final Set<BackgroundIsolate> _idle = {};
 
-  bool executeInIsolate(BackgroundIsolateTaskMixin task) {
-    if (_idle.isNotEmpty) {
-      final isolate = _idle.first;
-      _idle.remove(isolate);
-      _running[isolate.id] = isolate;
-      isolate.execute(task);
-      return true;
-    } else if (_running.length < maximumNumberOfConcurrencies) {
-      final isolate = _createBackgroundIsolate(task);
-      _running[isolate.id] = isolate;
-      return true;
-    } else {
-      return false;
-    }
-  }
+//   StreamSubscription<void> listenIdleIsolate(VoidCallback callback) {
+//     return _idleController.stream.listen((event) => callback());
+//   }
 
-  BackgroundIsolate _createBackgroundIsolate(
-      BackgroundIsolateTaskMixin initialTask) {
-    return BackgroundIsolate(
-      onIdle: (isolate) {
-        _running.remove(isolate.id);
-        _idle.add(isolate);
-        _controller.add(null);
-      },
-      willExit: (isolate) {
-        return true;
-      },
-      initialTask: initialTask,
-    );
-  }
-}
+//   bool hasIdleIsolate() {
+//     if (_idle.isNotEmpty) {
+//       return true;
+//     }
+//     if (_running.length < maximumNumberOfConcurrencies) {
+//       return true;
+//     }
+//     return false;
+//   }
+
+//   bool executeInIsolate(Task task) {
+//     if (_idle.isNotEmpty) {
+//       final isolate = _idle.first;
+//       _idle.remove(isolate);
+//       _running[isolate.id] = isolate;
+//       isolate.execute(task);
+//       return true;
+//     } else if (_running.length < maximumNumberOfConcurrencies) {
+//       final isolate = _createBackgroundIsolate();
+//       _running[isolate.id] = isolate;
+//       isolate._completer.future.then((value) {
+//         isolate.execute(task);
+//       });
+//       return true;
+//     } else {
+//       return false;
+//     }
+//   }
+
+//   BackgroundIsolate _createBackgroundIsolate() {
+//     return BackgroundIsolate(
+//       onIdle: (isolate) {
+//         _running.remove(isolate.id);
+
+//         if (_maximumNumberOfConcurrencies > (_running.length + _idle.length)) {
+//           _idle.add(isolate);
+//           _idleController.add(null);
+//         }
+//       },
+//       willExit: (isolate) {
+//         return true;
+//       },
+//       // initialTask: initialTask,
+//     );
+//   }
+// }

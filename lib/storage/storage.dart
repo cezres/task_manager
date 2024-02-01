@@ -5,13 +5,13 @@ abstract class Storage {
 
   Stream<TaskEntity> readAll(String identifier);
 
-  void write(TaskEntity task, String identifier);
+  FutureOr<void> write(TaskEntity task, String identifier);
 
-  void delete(String taskId, String identifier);
+  FutureOr<void> delete(String taskId, String identifier);
 
-  void clear(String identifier);
+  FutureOr<void> clear(String identifier);
 
-  Future<void> close();
+  FutureOr<void> close();
 }
 
 final class TaskEntity {
@@ -29,7 +29,7 @@ final class TaskEntity {
   final String? identifier;
   final TaskStatus status;
   final TaskPriority priority;
-  final Map<String, dynamic> data;
+  final dynamic data;
 
   factory TaskEntity.fromJson(Map<String, dynamic> json) {
     return TaskEntity(

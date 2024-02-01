@@ -1,0 +1,51 @@
+name: On Website Deploy
+"on":
+  push:
+    branches:
+      - "main"
+    paths:
+      - 'lib/**'
+      - 'web/**'
+      - 'pubspec.yaml'
+
+jobs:
+  build_and_deploy_web:
+    name: Build & Deploy Flutter to Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+
+      - name: 🌍 Enable Web
+        run: flutter config --enable-web
+
+      - name: 📦 Get packages
+        run: flutter pub get
+
+      - name: 🏭 Build Web Application
+        run: flutter build web --release
+
+      - name: Checkout Destination Repository
+        uses: actions/checkout@v2
+        with:
+          repository: flutter-task-manager/flutter-task-manager.github.io
+          token: ${{ secrets.PAT }}  # 使用你的 PAT
+          path: 'destination_repo'
+
+      - name: Copy Files to Destination Repository
+        run: |
+          # 删除 destination_repo 目录下除了 .git 以外的所有文件
+          find destination_repo -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} \;
+          cp -r build/web/* destination_repo/
+
+      - name: Commit and Push
+        run: |
+          cd destination_repo
+          git config --local user.email "cezresx@gmail.com"
+          git config --local user.name "cezres"
+          git add .
+          git commit -m "Update files"
+          git push --force

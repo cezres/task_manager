@@ -1,11 +1,13 @@
+import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:styled_widget/styled_widget.dart';
 import 'package:task_manager/task_manager.dart';
 
 class TaskManagerView extends StatelessWidget {
-  const TaskManagerView({super.key, required this.manager});
+  const TaskManagerView({super.key, required this.worker});
 
-  final TaskManager manager;
+  final Worker worker;
 
   @override
   Widget build(BuildContext context) {
@@ -15,21 +17,21 @@ class TaskManagerView extends StatelessWidget {
           context,
           title: 'Running',
           color: Colors.green[300],
-          tasks: (scheduler) => scheduler.runningTasks,
+          tasks: (worker) => worker.runningTasks,
         ),
         const VerticalDivider(width: 1, thickness: 1),
         _buildExpandedTaskList(
           context,
           title: 'Pending',
           color: Colors.orange[300],
-          tasks: (scheduler) => scheduler.pendingTasks,
+          tasks: (worker) => worker.pendingTasks,
         ),
         const VerticalDivider(width: 1, thickness: 1),
         _buildExpandedTaskList(
           context,
           title: 'Pasued',
           color: Colors.blue[300],
-          tasks: (scheduler) => scheduler.pausedTasks,
+          tasks: (worker) => worker.pausedTasks,
         ),
       ],
     );
@@ -39,7 +41,7 @@ class TaskManagerView extends StatelessWidget {
     BuildContext context, {
     required String title,
     required Color? color,
-    required List<Task> Function(TaskScheduler scheduler) tasks,
+    required List<Task> Function(Worker worker) tasks,
   }) {
     return Expanded(
       child: Column(
@@ -53,12 +55,13 @@ class TaskManagerView extends StatelessWidget {
               ),
             ),
           ),
+          const Divider(height: 1, thickness: 1),
           Expanded(
             child: Container(
-              color: color,
+              // color: color,
               child: StreamBuilder(
-                initialData: tasks(manager),
-                stream: manager.stream
+                initialData: tasks(worker),
+                stream: worker.stream
                     .map((event) => tasks(event))
                     .distinct(listEquals),
                 builder: (context, snapshot) {
@@ -75,16 +78,34 @@ class TaskManagerView extends StatelessWidget {
 }
 
 class _TaskListView extends StatelessWidget {
-  const _TaskListView({required this.tasks});
+  const _TaskListView({
+    required this.tasks,
+  });
 
   final List<Task> tasks;
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      itemCount: tasks.length,
-      itemBuilder: (context, index) {
-        return _TaskListItem(task: tasks[index]);
+    return ImplicitlyAnimatedList(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      items: tasks,
+      insertDuration: const Duration(milliseconds: 200),
+      removeDuration: const Duration(milliseconds: 200),
+      updateDuration: const Duration(),
+      itemBuilder: (context, animation, item, i) {
+        return SizeTransition(
+          sizeFactor: animation,
+          child: _TaskListItem(task: item),
+        );
+      },
+      areItemsTheSame: (oldItem, newItem) {
+        return oldItem.id == newItem.id;
+      },
+      removeItemBuilder: (context, animation, item) {
+        return SizeTransition(
+          sizeFactor: animation,
+          child: _TaskListItem(task: item),
+        );
       },
     );
   }
@@ -97,38 +118,51 @@ class _TaskListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = Text(task.id);
-
     return LayoutBuilder(
-      builder: (context, constraints) {
-        return StreamBuilder(
-          key: ValueKey(task.id),
-          initialData: task,
-          stream: task.stream,
-          builder: (context, snapshot) {
-            final task = snapshot.requireData;
-            return Stack(
-              children: [
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 1000),
-                    color: Colors.green,
-                    width: constraints.maxWidth * (60 - task.data) / 60,
-                  ),
-                ),
-                ListTile(
-                  title: title,
-                  subtitle: Text(task.data.toString()),
-                  trailing: _buildActionsView(context, task: task),
-                )
-              ],
-            );
-          },
+      builder: (context, constraints) => StreamBuilder(
+        key: ValueKey(task.id),
+        initialData: task,
+        stream: task.stream,
+        builder: (context, snapshot) => _buildTaskContentWidgets(
+          context,
+          task: task,
+          constraints: constraints,
+        ),
+      ),
+    )
+        .decorated(
+          color: Theme.of(context).colorScheme.onInverseSurface,
+          borderRadius: BorderRadius.circular(8),
+        )
+        .constrained(
+          height: 52,
+        )
+        .padding(
+          horizontal: 8,
+          vertical: 4,
         );
-      },
+  }
+
+  Widget _buildTaskContentWidgets(BuildContext context,
+      {required Task task, required BoxConstraints constraints}) {
+    return Stack(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 1000),
+          width: constraints.maxWidth * (60 - task.data) / 60,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(8),
+              bottomLeft: Radius.circular(8),
+            ),
+          ),
+        ).positioned(left: 0, top: 0, bottom: 0),
+        [
+          Expanded(child: Text("${task.name} (${task.data})")),
+          _buildActionsView(context, task: task),
+        ].toRow(crossAxisAlignment: CrossAxisAlignment.center).padding(all: 8)
+      ],
     );
   }
 
@@ -177,4 +211,8 @@ class _TaskListItem extends StatelessWidget {
       return const SizedBox.shrink();
     }
   }
+
+  // Widget _buildProgressView(BuildContext context, {required Task task}) {
+  //   return
+  // }
 }
