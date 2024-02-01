@@ -22,18 +22,6 @@ part 'scheduling/worker_isolate.dart';
 part 'storage/storage.dart';
 part 'storage/storage_manager.dart';
 
-// part 'isolate/background_isolate.dart';
-// part 'isolate/background_isolate_task_result.dart';
-// part 'isolate/background_isolate_manager.dart';
-
-// abstract class TaskManager extends TaskSchedulerImpl {
-//   TaskManager({required this.identifier}) {
-//     // SchedulerBinding.instance!.addPostFrameCallback((timeStamp) {
-//     //   _executeWaitingTasks();
-//     // });
-//   }
-// }
-
 abstract class OperationContext<D, R> {
   String get id;
 
