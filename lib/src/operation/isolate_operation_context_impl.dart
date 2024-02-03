@@ -3,38 +3,66 @@ part of '../../task_manager.dart';
 class IsolateOperationContextImpl<D, R> extends OperationContextImpl<D, R> {
   IsolateOperationContextImpl({
     required super.initialData,
-    super.id,
-    super.identifier,
     super.priority,
     super.status,
   }) {
     _receivePort.listen((message) {
-      debugPrint('receive: $message');
-      if (message is SendPort) {
-        _sendPort.complete(message);
-        message.send('hello background');
-      } else if (message is _Emit) {
-        emit(message.data);
-      } else if (message is Result<D, R>) {
-        handlerResult(message);
+      switch (message.runtimeType) {
+        case SendPort:
+          _sendPort.complete(message);
+          break;
+        case _EmitTaskAction:
+          emit((message as _EmitTaskAction).data);
+        case Result:
+          _handlerResult(message);
+          break;
+        default:
       }
     });
   }
 
   @override
-  void setup(
-      {D? data, TaskStatus? status, TaskFlag? flag, TaskPriority? priority}) {
-    super.setup(data: data, status: status, flag: flag, priority: priority);
-    if (flag == TaskFlag.cancel) {
-      _sendPort.future.then((value) => value.send(const _Cancel()));
-    } else if (flag == TaskFlag.pause) {
-      _sendPort.future.then((value) => value.send(const _Pause()));
+  void pause() {
+    super.pause();
+    _sendPort.future.then((value) => value.send(const _PauseTaskAction()));
+  }
+
+  @override
+  void cancel() {
+    super.cancel();
+    _sendPort.future.then((value) => value.send(const _CancelTaskAction()));
+  }
+
+  @override
+  Future<ResultType> run(Operation<D, R> operation) async {
+    status = TaskStatus.running;
+    _controller.add(this);
+
+    try {
+      final context = wrapper();
+      final result = await compute(
+        (message) async {
+          final operation = message[0] as Operation;
+          final context = message[1] as IsolateOperationContextImplWrapper;
+          context.ensureInitialized();
+          return await operation.run(context);
+        },
+        [
+          operation,
+          context,
+        ],
+      );
+      _handlerResult(result as Result<D, R>);
+      return result.type;
+    } catch (e) {
+      _handlerResult(Result<D, R>.error(e));
+      return ResultType.error;
     }
   }
 
   @override
-  void handlerResult(Result result) {
-    super.handlerResult(result);
+  void _handlerResult(Result<D, R> result) {
+    super._handlerResult(result);
     switch (result.type) {
       case ResultType.canceled:
       case ResultType.completed:
@@ -53,9 +81,6 @@ class IsolateOperationContextImpl<D, R> extends OperationContextImpl<D, R> {
     return IsolateOperationContextImplWrapper<D, R>(
       sendPort: _receivePort.sendPort,
       initialData: data,
-      id: id,
-      identifier: identifier,
-      priority: priority,
     );
   }
 }
@@ -64,94 +89,50 @@ class IsolateOperationContextImplWrapper<D, R> extends OperationContext<D, R> {
   IsolateOperationContextImplWrapper({
     required this.sendPort,
     required D initialData,
-    required this.id,
-    required this.identifier,
-    required this.priority,
   }) : data = initialData;
 
   final SendPort sendPort;
-  late final ReceivePort receivePort;
 
   @override
   D data;
-
-  @override
-  final String id;
-
-  @override
-  final String? identifier;
-
-  @override
-  final TaskPriority priority;
-
-  @override
-  TaskStatus get status => TaskStatus.running;
-
-  TaskFlag _flag = TaskFlag.none;
-
-  @override
-  void emit(D data) {
-    this.data = data;
-    sendPort.send(_Emit(data));
-  }
-
-  void ensureInitialized() {
-    receivePort = ReceivePort();
-    sendPort.send(receivePort.sendPort);
-
-    receivePort.listen((message) {
-      if (message is _Cancel) {
-        _flag = TaskFlag.cancel;
-      } else if (message is _Pause) {
-        _flag = TaskFlag.pause;
-      }
-    });
-  }
 
   @override
   bool get shouldCancel => _flag == TaskFlag.cancel;
 
   @override
   bool get shouldPause => _flag == TaskFlag.pause;
-}
 
-final class _Cancel {
-  const _Cancel();
-}
-
-final class _Pause {
-  const _Pause();
-}
-
-final class _Emit {
-  _Emit(this.data);
-  final dynamic data;
+  TaskFlag _flag = TaskFlag.none;
 
   @override
-  String toString() {
-    return '$data';
+  void emit(D data) {
+    this.data = data;
+    sendPort.send(_EmitTaskAction(data));
+  }
+
+  void ensureInitialized() {
+    final receivePort = ReceivePort();
+    sendPort.send(receivePort.sendPort);
+
+    receivePort.listen((message) {
+      if (message is _CancelTaskAction) {
+        _flag = TaskFlag.cancel;
+      } else if (message is _PauseTaskAction) {
+        _flag = TaskFlag.pause;
+      }
+    });
   }
 }
 
-class IsolateTaskImpl<D, R> {
-  IsolateTaskImpl({required this.operation, required this.context});
+final class _CancelTaskAction {
+  const _CancelTaskAction();
+}
 
-  factory IsolateTaskImpl.from(TaskImpl<D, R, Operation<D, R>> task) =>
-      IsolateTaskImpl(
-        operation: task.operation,
-        context: (task._context as IsolateOperationContextImpl<D, R>).wrapper(),
-      );
+final class _PauseTaskAction {
+  const _PauseTaskAction();
+}
 
-  final Operation<D, R> operation;
-  final IsolateOperationContextImplWrapper<D, R> context;
-
-  Future<Result<D, R>> run() async {
-    try {
-      context.ensureInitialized();
-      final result = await operation.run(context);
-      return result;
-    } catch (e) {
-      return Result<D, R>.error(e);
-    }
-  }
+final class _EmitTaskAction {
+  _EmitTaskAction(this.data);
+  final dynamic data;
 }

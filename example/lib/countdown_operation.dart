@@ -9,6 +9,9 @@ class CountdownOperation extends HydratedOperation<int, void> {
   String get name => 'Countdown';
 
   @override
+  bool get compute => true;
+
+  @override
   FutureOr<Result<int, void>> run(OperationContext<int, void> context) async {
     int data = context.data;
     while (true) {

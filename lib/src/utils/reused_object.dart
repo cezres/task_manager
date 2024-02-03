@@ -31,4 +31,25 @@ class GlobalReusedObject {
     }
     return reusedObject.create();
   }
+
+  operator [](String key) {
+    final reusedObject = _reusedObjects[key];
+    if (reusedObject == null) {
+      throw StateError('Reused object not found: $key');
+    }
+    return reusedObject.create();
+  }
+
+  operator []=(String key, ReusedObject value) {
+    _reusedObjects[key] = value;
+  }
+
+  dynamic putIfAbsent(String key, dynamic Function() builder) {
+    if (_reusedObjects.containsKey(key)) {
+      return _reusedObjects[key];
+    }
+    final value = builder();
+    _reusedObjects[key] = value;
+    return value;
+  }
 }

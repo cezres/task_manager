@@ -43,12 +43,11 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
 
     worker.maxConcurrencies = 2;
-    worker.loadTasksWithStorage();
   }
 
   void _addTasks() {
     for (var i = 0; i < 1; i++) {
-      worker.addTask(const CountdownOperation(), 60);
+      worker.run(const CountdownOperation(), 60);
     }
   }
 

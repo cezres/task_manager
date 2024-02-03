@@ -4,12 +4,10 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
-import 'package:task_manager/src/task/task_priority.dart';
 import 'package:task_manager/src/utils/generate_incremental_id.dart';
 import 'package:task_manager/src/utils/priority_queue.dart';
 
 part 'src/task/task_impl.dart';
-part 'src/task/hydrated_task_impl.dart';
 part 'src/task/result.dart';
 
 part 'src/operation/operation_context_impl.dart';
@@ -17,20 +15,11 @@ part 'src/operation/isolate_operation_context_impl.dart';
 
 part 'src/scheduling/scheduler.dart';
 part 'src/scheduling/worker.dart';
-part 'src/scheduling/worker_isolate.dart';
 
 part 'src/storage/storage.dart';
 part 'src/storage/storage_manager.dart';
 
 abstract class OperationContext<D, R> {
-  String get id;
-
-  String? get identifier;
-
-  TaskPriority get priority;
-
-  TaskStatus get status;
-
   D get data;
 
   bool get shouldCancel;
@@ -40,26 +29,21 @@ abstract class OperationContext<D, R> {
   void emit(D data);
 }
 
-abstract class Operation<D, R> extends _Operation<D, R> {
+abstract class Operation<D, R> {
   const Operation();
 
   String get name => runtimeType.toString();
 
+  /// If [compute] is true, the operation will run in isolate
+  bool get compute => false;
+
   FutureOr<Result<D, R>> run(OperationContext<D, R> context);
 }
 
-mixin HydratedOperationMixin<D, R> {
-  D fromJson(dynamic json);
-  dynamic toJson(D data);
-}
-
-abstract class HydratedOperation<D, R> extends Operation<D, R>
-    with HydratedOperationMixin<D, R> {
-  const HydratedOperation();
-}
-
 abstract class Task<D, R> {
-  String get name;
+  String get name => operation.name;
+
+  Operation<D, R> get operation;
 
   String get id;
 
@@ -85,7 +69,7 @@ abstract class Task<D, R> {
 
   void resume();
 
-  void changePriority(TaskPriority priority);
+  void setPriority(TaskPriority priority);
 }
 
 abstract class Worker {
@@ -103,12 +87,89 @@ abstract class Worker {
   List<Task> get pendingTasks;
   List<Task> get pausedTasks;
 
-  Task<D, R> addTask<D, R>(Operation<D, R> operation, D initialData,
-      {bool isPaused = false});
+  Task<D, R> run<D, R>(
+    Operation<D, R> operation,
+    D initialData, {
+    bool isPaused = false,
+    TaskPriority priority = TaskPriority.normal,
+    TaskIdentifier? identifier,
+    TaskIdentifierStrategy strategy = TaskIdentifierStrategy.reuse,
+  });
 
+  // void registerScheduledTask<D, R>(
+  //   String name,
+  //   Duration duration,
+  //   Task<D, R> Function() builder, {
+  //   TaskPriority priority = TaskPriority.normal,
+  // }) {
+  //   throw UnimplementedError();
+  // }
+
+  void registerRepeatedTask<D, R>(
+    Operation<D, R> operation,
+    D initialData, {
+    required String name,
+    required Duration timeInterval,
+    TaskPriority priority = TaskPriority.normal,
+    Duration Function(
+      R result,
+      int runCount,
+      int runTime,
+      Duration previousTimeInterval,
+    )? nextTimeInterval,
+    bool Function(R? result, dynamic error, int runCount, int runTime)?
+        terminate,
+  }) {
+    throw UnimplementedError();
+  }
+
+  /// Wait for all tasks to complete
   Future<void> wait();
 
+  /// Clear all tasks
   void clear();
 
-  Stream<Task> loadTasksWithStorage();
+  // Future<void> cancelTaskWithIdentifier(TaskIdentifier identifier);
 }
+
+abstract class HydratedOperation<D, R> extends Operation<D, R> {
+  const HydratedOperation();
+
+  D fromJson(dynamic json);
+  dynamic toJson(D data);
+}
+
+abstract class HydratedWorker extends Worker {
+  HydratedWorker._() : super._();
+
+  // Stream<Task> loadTasks();
+}
+
+enum TaskPriority {
+  veryLow,
+  low,
+  normal,
+  high,
+  veryHigh,
+}
+
+// mixin ComputeMixin {
+//   //
+// }
+
+// mixin HydratedMixin<D> {
+//   D fromJson(dynamic json);
+//   dynamic toJson(D data);
+// }
+
+
+// final class BlockOperation<D, R> extends Operation<D, R> {
+//   const BlockOperation(this.block);
+
+//   final FutureOr<Result<D, R>> Function(OperationContext<D, R> context) block;
+
+//   @override
+//   FutureOr<Result<D, R>> run(OperationContext<D, R> context) async {
+//     return block(context);
+//   }
+// }

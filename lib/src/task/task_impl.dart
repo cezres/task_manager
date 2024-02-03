@@ -1,94 +1,70 @@
 part of '../../task_manager.dart';
 
-class TaskImpl<D, R, O extends Operation<D, R>> extends Task<D, R>
-    with PriorityMixin {
-  TaskImpl._({
+class TaskImpl<D, R> extends Task<D, R> with PriorityMixin {
+  TaskImpl({
     required this.operation,
-    required OperationContextImpl<D, R> context,
-  }) : _context = context;
+    required this.context,
+    String? id,
+    this.identifier,
+  }) : id = id ?? generateIncrementalId('task');
+
+  final OperationContextImpl<D, R> context;
 
   @override
-  String get name => operation.name;
+  final Operation<D, R> operation;
 
   @override
-  String get id => _context.id;
+  final String id;
 
   @override
-  String? get identifier => _context.identifier;
+  final String? identifier;
 
   @override
-  TaskPriority get priority => _context.priority;
+  TaskPriority get priority => context.priority;
 
   @override
-  TaskStatus get status => _context.status;
+  TaskStatus get status => context.status;
 
   @override
-  D get data => _context.data;
+  D get data => context.data;
 
   @override
-  bool get shouldCancel => _context.shouldCancel;
+  bool get shouldCancel => context.shouldCancel;
 
   @override
-  bool get shouldPause => _context.shouldPause;
+  bool get shouldPause => context.shouldPause;
 
   @override
-  Stream<TaskImpl<D, R, O>> get stream => _context.stream.map((event) => this);
+  Stream<TaskImpl<D, R>> get stream => context.stream.map((event) => this);
 
-  final OperationContextImpl<D, R> _context;
-  final O operation;
-
-  FutureOr<Result<D, R>> run() {
-    return operation.run(_context);
-  }
+  Future<ResultType> run() => context.run(operation);
 
   @override
   void cancel() {
-    if (status == TaskStatus.running) {
-      _change(flag: TaskFlag.cancel);
-    } else if (status == TaskStatus.pending || status == TaskStatus.paused) {
-      if (_scheduler != null) {
-        _scheduler?.cancel(this);
-      } else {
-        _change(status: TaskStatus.canceled, flag: TaskFlag.none);
-      }
-    }
+    _scheduler?.cancel(this);
+    context.cancel();
   }
 
   @override
   void pause() {
-    if (status == TaskStatus.running) {
-      _change(flag: TaskFlag.pause);
-    } else if (status == TaskStatus.pending) {
-      if (_scheduler != null) {
-        _scheduler?.pause(this);
-      } else {
-        _change(status: TaskStatus.paused, flag: TaskFlag.none);
-      }
-    }
+    _scheduler?.pause(this);
+    context.pause();
   }
 
   @override
   void resume() {
-    if (status == TaskStatus.paused) {
-      if (_scheduler != null) {
-        _scheduler?.resume(this);
-      } else {
-        _change(status: TaskStatus.pending, flag: TaskFlag.none);
-      }
-    }
+    _scheduler?.resume(this);
+    context.resume();
   }
 
   @override
-  void changePriority(TaskPriority priority) {
-    if (_scheduler != null) {
-      _scheduler?.setPriority(this, priority);
-    } else {
-      _change(priority: priority);
-    }
+  void setPriority(TaskPriority priority) {
+    _scheduler?.setPriority(this, oldPriority: context.priority);
+    context.setPriority(priority);
   }
 
   @override
-  Future<R> wait() => _context.wait();
+  Future<R> wait() => context.wait();
 
   @override
   int get hashCode => id.hashCode;
@@ -103,11 +79,11 @@ class TaskImpl<D, R, O extends Operation<D, R>> extends Task<D, R>
 
   @override
   String toString() {
-    return '${operation.runtimeType}: ${_context.data}';
+    return '${operation.runtimeType}: ${context.status}';
   }
 
   @override
-  int get priorityValue => _context.priority.index;
+  int get priorityValue => context.priority.index;
 
   /// Private
   Scheduler? _scheduler;
@@ -117,40 +93,6 @@ class TaskImpl<D, R, O extends Operation<D, R>> extends Task<D, R>
       throw StateError('Task is already initialized');
     }
     _scheduler = value;
-  }
-
-  void onCompleted(Result<D, R> result) {
-    _context.handlerResult(result);
-  }
-
-  void onError(dynamic error) {
-    _context.handlerResult(Result<D, R>.error(error));
-  }
-
-  void onPaused() {
-    _context.handlerResult(Result<D, R>.paused());
-  }
-
-  void onCanceled() {
-    _context.handlerResult(Result<D, R>.canceled());
-  }
-
-  void onRunning() {
-    _context.setup(status: TaskStatus.running);
-  }
-
-  void _change({
-    D? data,
-    TaskStatus? status,
-    TaskFlag? flag,
-    TaskPriority? priority,
-  }) {
-    _context.setup(
-      data: data,
-      status: status,
-      flag: flag,
-      priority: priority,
-    );
   }
 }
 
@@ -173,9 +115,18 @@ enum TaskFlag {
 
 class CanceledException extends Error {
   CanceledException();
+}
 
-  @override
-  String toString() {
-    return 'CanceledException';
-  }
+enum TaskType {
+  normal,
+  isolate,
+}
+
+TaskType getTaskType(Task task) {
+  return TaskType.normal;
+}
+
+OperationContext<D, R> getTaskForType<D, R>(TaskType type) {
+  // return OperationContextImpl<D, R>();
+  throw UnimplementedError();
 }

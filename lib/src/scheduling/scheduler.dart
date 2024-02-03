@@ -5,8 +5,26 @@ typedef TaskId = String;
 typedef SchedulerIdentifier = String;
 
 enum TaskIdentifierStrategy {
-  reuse,
-  cancel,
+  reuse, // Reuse tasks with the same identifier
+  cancel, // Cancel the previous task with the same identifier
+}
+
+mixin Scheduleable {
+  Scheduler? _scheduler;
+
+  Scheduler? get scheduler => _scheduler;
+
+  void ensureInitialized(Scheduler value) {
+    if (_scheduler == null) {
+      _scheduler = value;
+    } else {
+      throw StateError('Task is already initialized');
+    }
+  }
+
+  TaskStatus get status;
+
+  FutureOr<ResultType> run();
 }
 
 abstract class Scheduler {
@@ -30,12 +48,11 @@ abstract class Scheduler {
 
   TaskImpl? contains(TaskId id, TaskIdentifier? identifier);
 
-  void putIfAbsent(
-      TaskId id, TaskIdentifier? identifier, TaskImpl Function() ifAbsent);
+  TaskImpl? taskOfIdentifier(TaskIdentifier identifier);
+
+  TaskImpl putIfAbsent(TaskIdentifier identifier, TaskImpl Function() ifAbsent);
 
   bool add(TaskImpl task);
-
-  // void addAll(Iterable<E> schedulables);
 
   void pause(TaskImpl task);
 
@@ -43,7 +60,7 @@ abstract class Scheduler {
 
   void cancel(TaskImpl task);
 
-  void setPriority(TaskImpl task, TaskPriority newPriority);
+  void setPriority(TaskImpl task, {required TaskPriority oldPriority});
 
   Future<void> waitForAllTasksToComplete();
 
@@ -70,7 +87,7 @@ class SchedulerImpl extends Scheduler {
   @override
   final String identifier;
 
-  final FutureOr<Result> Function(TaskImpl task) executeTask;
+  final Future<ResultType> Function(TaskImpl task) executeTask;
 
   final _controller = StreamController<Scheduler>.broadcast();
   Completer<void> _completer = Completer<void>();
@@ -112,10 +129,20 @@ class SchedulerImpl extends Scheduler {
   }
 
   @override
-  void putIfAbsent(TaskId id, TaskIdentifier? identifier,
-      TaskImpl<dynamic, dynamic, Operation> Function() ifAbsent) {
-    if (contains(id, identifier) == null) {
-      add(ifAbsent());
+  TaskImpl? taskOfIdentifier(TaskIdentifier identifier) {
+    return _taskOfIdentifier[identifier];
+  }
+
+  @override
+  TaskImpl putIfAbsent(
+      TaskIdentifier identifier, TaskImpl Function() ifAbsent) {
+    final task = _taskOfIdentifier[identifier];
+    if (task == null) {
+      final task = ifAbsent();
+      add(task);
+      return task;
+    } else {
+      return task;
     }
   }
 
@@ -163,47 +190,33 @@ class SchedulerImpl extends Scheduler {
   @override
   void pause(TaskImpl task) {
     if (task.status == TaskStatus.pending) {
-      _updateAndNotify(() {
-        _pendingTasks.remove(task);
-        _pausedTasks[task.id] = task;
-        task.onPaused();
-      });
+      _pendingTasks.remove(task);
+      _pausedTasks[task.id] = task;
+      _notify();
     }
   }
 
   @override
   void resume(TaskImpl task) {
-    if (task.status == TaskStatus.paused) {
-      _updateAndNotify(() {
-        _pausedTasks.remove(task.id);
-        _pendingTasks.add(task);
-        task.onRunning();
-        _resetCompleter();
-        executePendingTasks();
-      });
-    }
+    _pausedTasks.remove(task.id);
+    _pendingTasks.add(task);
+    executePendingTasks();
   }
 
   @override
   void cancel(TaskImpl task) {
-    _updateAndNotify(() {
-      if (task.status == TaskStatus.pending) {
-        _pendingTasks.remove(task);
-        task.onCanceled();
-      } else if (task.status == TaskStatus.paused) {
-        _pausedTasks.remove(task.id);
-        task.onCanceled();
-      }
-    });
+    if (task.status == TaskStatus.pending) {
+      _pendingTasks.remove(task);
+    } else if (task.status == TaskStatus.paused) {
+      _pausedTasks.remove(task.id);
+    }
+    _notify();
   }
 
   @override
-  void setPriority(TaskImpl task, TaskPriority newPriority) {
-    if (task.status == TaskStatus.running || task.status == TaskStatus.paused) {
-      task._change(priority: newPriority);
-    } else if (task.status == TaskStatus.pending) {
-      _pendingTasks.remove(task);
-      task._change(priority: newPriority);
+  void setPriority(TaskImpl task, {required TaskPriority oldPriority}) {
+    if (task.status == TaskStatus.pending) {
+      _pendingTasks.remove(task, priority: oldPriority.index);
       _pendingTasks.add(task);
     }
   }
@@ -228,45 +241,38 @@ class SchedulerImpl extends Scheduler {
   }
 
   void executePendingTasks() {
-    _updateAndNotify(() {
-      while (!isPendingTasksEmpty && !isMaxConcurrencyReached) {
-        final task = _pendingTasks.removeFirst();
-        _executeTask(task);
-      }
-    });
-
     if (_runningTasks.isEmpty &&
         _pendingTasks.isEmpty &&
         _pausedTasks.isEmpty) {
       _complete();
+      return;
     }
+
+    while (!isPendingTasksEmpty && !isMaxConcurrencyReached) {
+      final task = _pendingTasks.removeFirst();
+      _executeTask(task);
+    }
+    _notify();
   }
 
   void _executeTask(TaskImpl task) async {
-    _updateAndNotify(() {
-      _runningTasks[task.id] = task;
-      task.onRunning();
-    });
+    _runningTasks[task.id] = task;
+    _notify();
 
-    Future.microtask(() => executeTask(task)).then((value) {
-      _updateAndNotify(() {
-        _runningTasks.remove(task.id);
-        task.onCompleted(value);
-
-        if (value.type == ResultType.paused) {
-          _pausedTasks[task.id] = task;
+    executeTask(task).then((value) {
+      if (value == ResultType.paused) {
+        _pausedTasks[task.id] = task;
+      }
+    }).whenComplete(() {
+      _runningTasks.remove(task.id);
+      if (isPendingTasksEmpty) {
+        if (_pausedTasks.isEmpty && _runningTasks.isEmpty) {
+          _complete();
         }
-
-        if (isPendingTasksEmpty) {
-          if (_pausedTasks.isEmpty && _runningTasks.isEmpty) {
-            _complete();
-          }
-        } else {
-          executePendingTasks();
-        }
-      });
-    }).onError((error, stackTrace) {
-      task.onError(error);
+        _notify();
+      } else {
+        executePendingTasks();
+      }
     });
   }
 
@@ -279,42 +285,6 @@ class SchedulerImpl extends Scheduler {
   void _complete() {
     if (!_completer.isCompleted) {
       _completer.complete();
-    }
-  }
-
-  String? _changeIdentifier;
-
-  void _updateAndNotify(void Function() callback) {
-    if (_changeIdentifier != null) {
-      callback();
-    } else {
-      _changeIdentifier = generateIncrementalId('scheduler-change');
-
-      final runningTasksCount = _runningTasks.length;
-      final pendingTasksCount = _pendingTasks.length;
-      final pausedTasksCount = _pausedTasks.length;
-
-      try {
-        callback();
-        if (runningTasksCount != _runningTasks.length ||
-            pendingTasksCount != _pendingTasks.length ||
-            pausedTasksCount != _pausedTasks.length) {
-          _controller.add(this);
-        }
-
-        _changeIdentifier = null;
-      } catch (e) {
-        debugPrint('Error: $e');
-
-        if (runningTasksCount != _runningTasks.length ||
-            pendingTasksCount != _pendingTasks.length ||
-            pausedTasksCount != _pausedTasks.length) {
-          _controller.add(this);
-        }
-
-        _changeIdentifier = null;
-        rethrow;
-      }
     }
   }
 

@@ -46,7 +46,7 @@ abstract class PriorityQueue<E extends PriorityMixin> {
   /// only one of them is removed.
   ///
   /// Uses the [Object.==] of elements in the queue to check
-  bool remove(E element);
+  bool remove(E element, {int? priority});
 
   /// Removes all the elements from this queue and returns them.
   List<E> removeAll();
@@ -133,16 +133,16 @@ class PriorityQueueImpl<E extends PriorityMixin> implements PriorityQueue<E> {
   }
 
   @override
-  bool remove(E element) {
-    final priority = element.priorityValue;
-    final list = _listOfPriority[priority];
+  bool remove(E element, {int? priority}) {
+    final priorityValue = priority ?? element.priorityValue;
+    final list = _listOfPriority[priorityValue];
     if (list == null) {
       return false;
     }
     final removed = list.remove(element);
     if (list.isEmpty) {
-      _priorities.remove(priority);
-      _listOfPriority.remove(priority);
+      _priorities.remove(priorityValue);
+      _listOfPriority.remove(priorityValue);
     }
     return removed;
   }

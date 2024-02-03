@@ -3,12 +3,9 @@ part of '../../task_manager.dart';
 class OperationContextImpl<D, R> extends OperationContext<D, R> {
   OperationContextImpl({
     required D initialData,
-    String? id,
-    this.identifier,
     this.priority = TaskPriority.normal,
     this.status = TaskStatus.pending,
-  })  : data = initialData,
-        id = id ?? generateIncrementalId('task');
+  }) : data = initialData;
 
   TaskFlag _flag = TaskFlag.none;
   final _controller = StreamController<OperationContextImpl<D, R>>.broadcast();
@@ -16,16 +13,8 @@ class OperationContextImpl<D, R> extends OperationContext<D, R> {
   R? _result;
   dynamic _error;
 
-  @override
-  final String id;
-
-  @override
-  final String? identifier;
-
-  @override
   TaskPriority priority;
 
-  @override
   TaskStatus status;
 
   @override
@@ -62,28 +51,64 @@ class OperationContextImpl<D, R> extends OperationContext<D, R> {
     _controller.add(this);
   }
 
-  void setup({
-    D? data,
-    TaskStatus? status,
-    TaskFlag? flag,
-    TaskPriority? priority,
-  }) {
-    if (data != null) {
-      this.data = data;
+  void cancel() {
+    switch (status) {
+      case TaskStatus.running:
+        _flag = TaskFlag.cancel;
+        _controller.add(this);
+        break;
+      case TaskStatus.pending:
+      case TaskStatus.paused:
+        _handlerResult(Result.canceled());
+        break;
+      default:
     }
-    if (status != null) {
-      this.status = status;
+  }
+
+  void pause() {
+    switch (status) {
+      case TaskStatus.running:
+        _flag = TaskFlag.pause;
+        _controller.add(this);
+        break;
+      case TaskStatus.pending:
+        status = TaskStatus.paused;
+        _controller.add(this);
+        break;
+      default:
     }
-    if (flag != null) {
-      _flag = flag;
+  }
+
+  void resume() {
+    switch (status) {
+      case TaskStatus.paused:
+        status = TaskStatus.pending;
+        _controller.add(this);
+        break;
+      default:
     }
-    if (priority != null) {
-      this.priority = priority;
-    }
+  }
+
+  void setPriority(TaskPriority priority) {
+    this.priority = priority;
     _controller.add(this);
   }
 
-  void handlerResult(Result result) {
+  Future<ResultType> run(Operation<D, R> operation) async {
+    status = TaskStatus.running;
+    _controller.add(this);
+
+    try {
+      final result = await operation.run(this);
+      _handlerResult(result);
+      return result.type;
+    } catch (e) {
+      _handlerResult(Result<D, R>.error(e));
+      return ResultType.error;
+    }
+  }
+
+  void _handlerResult(Result<D, R> result) {
     switch (result.type) {
       case ResultType.paused:
         _flag = TaskFlag.none;

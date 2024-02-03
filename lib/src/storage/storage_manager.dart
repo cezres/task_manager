@@ -16,50 +16,51 @@ class StorageManager {
     _registeredOperations[T.toString()] = create;
   }
 
-  static Future<void> saveTask(HydratedTaskImpl task) async {
+  static void listenTask(TaskImpl task) {
+    final operation = task.operation;
+    if (!_registeredOperations.containsKey(operation.runtimeType.toString())) {
+      return;
+    }
+    // task.stream.listen((event) {
+    //   switch (event.status) {
+    //     case TaskStatus.running:
+    //     case TaskStatus.paused:
+    //     case TaskStatus.pending:
+    //       if (task.scheduler != null) {
+    //         saveTask(task, task.scheduler!.identifier);
+    //       }
+    //       break;
+    //     case TaskStatus.canceled:
+    //     case TaskStatus.completed:
+    //     case TaskStatus.error:
+    //       if (task.scheduler != null) {
+    //         deleteTask(task.id, task.scheduler!.identifier);
+    //       }
+    //       break;
+    //     default:
+    //   }
+    // });
+  }
+
+  static Future<void> saveTask(
+    TaskEntity entity,
+    SchedulerIdentifier identifier,
+  ) async {
     if (_storage == null) {
       return;
     }
-    if (task.status == TaskStatus.canceled ||
-        task.status == TaskStatus.completed ||
-        task.status == TaskStatus.error) {
-      return;
-    }
-    final scheduler = task._scheduler;
-    if (scheduler == null) {
-      return;
-    }
-    final type = task.operation.runtimeType.toString();
+    final type = entity.operation;
     if (!_registeredOperations.containsKey(type)) {
       return;
     }
-    await _storage!.write(
-      TaskEntity(
-        type: type,
-        id: task.id,
-        identifier: task.identifier,
-        status: task.status == TaskStatus.paused
-            ? TaskStatus.paused
-            : TaskStatus.pending,
-        priority: task.priority,
-        data: task.operation.toJson(task.data),
-      ),
-      scheduler.identifier,
-    );
+    await _storage!.write(entity, identifier);
   }
 
-  static void deleteTask(HydratedTaskImpl task) {
-    if (_storage == null) {
-      return;
-    }
-    final scheduler = task._scheduler;
-    if (scheduler == null) {
-      return;
-    }
-    _storage!.delete(task.id, scheduler.identifier);
+  static void deleteTask(TaskId id, SchedulerIdentifier identifier) {
+    _storage!.delete(id, identifier);
   }
 
-  static Stream<(HydratedOperation, TaskEntity)> loadTasks(
+  static Stream<(HydratedOperation, TaskEntity)> loadTaskEntity(
       SchedulerIdentifier schedulerIdentifier) {
     if (_storage == null) {
       return const Stream.empty();
@@ -67,7 +68,7 @@ class StorageManager {
     return _storage!
         .readAll(schedulerIdentifier)
         .map((event) {
-          final creater = _registeredOperations[event.type];
+          final creater = _registeredOperations[event.operation];
           if (creater == null) {
             _storage!.delete(event.id, schedulerIdentifier);
             return null;

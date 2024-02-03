@@ -64,18 +64,15 @@ class TaskManagerView extends StatelessWidget {
           ),
           const Divider(height: 1, thickness: 1),
           Expanded(
-            child: Container(
-              // color: color,
-              child: StreamBuilder(
-                initialData: tasks(worker),
-                stream: worker.stream
-                    .map((event) => tasks(event))
-                    .distinct(listEquals),
-                builder: (context, snapshot) {
-                  final tasks = snapshot.requireData;
-                  return _TaskListView(tasks: tasks);
-                },
-              ),
+            child: StreamBuilder(
+              initialData: tasks(worker),
+              stream: worker.stream
+                  .map((event) => tasks(event))
+                  .distinct(listEquals),
+              builder: (context, snapshot) {
+                final tasks = snapshot.requireData;
+                return _TaskListView(tasks: tasks);
+              },
             ),
           )
         ],

@@ -16,7 +16,8 @@ abstract class Storage {
 
 final class TaskEntity {
   TaskEntity({
-    required this.type,
+    required this.operation,
+    // required this.type,
     required this.id,
     required this.identifier,
     required this.status,
@@ -24,7 +25,8 @@ final class TaskEntity {
     required this.data,
   });
 
-  final String type;
+  final String operation;
+  // final String type;
   final String id;
   final String? identifier;
   final TaskStatus status;
@@ -33,7 +35,8 @@ final class TaskEntity {
 
   factory TaskEntity.fromJson(Map<String, dynamic> json) {
     return TaskEntity(
-      type: json['type'],
+      operation: json['operation'],
+      // type: json['type'],
       id: json['id'],
       identifier: json['identifier'],
       status: TaskStatus.values[json['status']],
@@ -44,7 +47,8 @@ final class TaskEntity {
 
   Map<String, dynamic> toJson() {
     return {
-      'type': type,
+      'operation': operation,
+      // 'type': type,
       'id': id,
       'identifier': identifier,
       'status': status.index,

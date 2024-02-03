@@ -5,7 +5,7 @@ final Map<String, WorkerImpl> _workers = {};
 class WorkerImpl extends Worker {
   WorkerImpl._(String identifier) : super._() {
     _scheduler = SchedulerImpl(
-      executeTask: executeTask,
+      executeTask: _executeTask,
       identifier: identifier,
     );
   }
@@ -51,182 +51,58 @@ class WorkerImpl extends Worker {
   @override
   void clear() => _scheduler.clear();
 
-  // factory Worker.isolate() => IsolateWorker();
-
   @override
-  TaskImpl<D, R, Operation<D, R>> addTask<D, R>(
-    Operation<D, R> operation,
-    D initialData, {
-    bool isPaused = false,
-  }) {
-    final task = _createTask(
-      operation,
-      initialData,
-      isPaused: isPaused,
-      isHydrated: false,
+  Task<D, R> run<D, R>(Operation<D, R> operation, D initialData,
+      {bool isPaused = false,
+      TaskPriority priority = TaskPriority.normal,
+      TaskIdentifier? identifier,
+      TaskIdentifierStrategy strategy = TaskIdentifierStrategy.reuse}) {
+    return _putIfAbsent(
+      identifier: identifier,
+      priority: priority,
+      strategy: strategy,
+      ifAbsent: () => TaskImpl(
+        operation: operation,
+        context: operation.compute
+            ? IsolateOperationContextImpl(
+                initialData: initialData,
+                priority: priority,
+                status: isPaused ? TaskStatus.paused : TaskStatus.pending,
+              )
+            : OperationContextImpl(
+                initialData: initialData,
+                priority: priority,
+                status: isPaused ? TaskStatus.paused : TaskStatus.pending,
+              ),
+        identifier: identifier,
+      ),
     );
+  }
+
+  Task<D, R> _putIfAbsent<D, R>({
+    required TaskIdentifier? identifier,
+    required TaskPriority priority,
+    required TaskIdentifierStrategy strategy,
+    required TaskImpl<D, R> Function() ifAbsent,
+  }) {
+    if (identifier != null) {
+      final task = _scheduler.taskOfIdentifier(identifier) as Task<D, R>;
+      switch (strategy) {
+        case TaskIdentifierStrategy.reuse:
+          if (task.priority != priority) {
+            task.setPriority(priority);
+          }
+          return task;
+        case TaskIdentifierStrategy.cancel:
+          task.cancel();
+      }
+    }
+    final task = ifAbsent();
     _scheduler.add(task);
     return task;
   }
 
-  void registerScheduledTask<D, R>(
-    String name,
-    Duration duration,
-    Task<D, R> Function() builder, {
-    TaskPriority priority = TaskPriority.normal,
-  }) {
-    throw UnimplementedError();
-  }
-
-  void registerRepeatedTask<D, R>(
-    String name,
-    Duration duration,
-    Task<D, R> Function() builder, {
-    TaskPriority priority = TaskPriority.normal,
-  }) {
-    throw UnimplementedError();
-  }
-
-  void addTasks<D, R>(
-    Operation<D, R> operation,
-    List<D> initialDatas,
-  ) {
-    for (var element in initialDatas) {
-      addTask(operation, element);
-    }
-  }
-
-  FutureOr<Result> executeTask(TaskImpl task) {
+  Future<ResultType> _executeTask(TaskImpl task) {
     return task.run();
-  }
-
-  @override
-  Stream<Task> loadTasksWithStorage() {
-    final controller = StreamController<Task>();
-
-    Future.microtask(() async {
-      final list =
-          await StorageManager.loadTasks(_scheduler.identifier).toList();
-      for (var element in list) {
-        final entity = element.$2;
-        if (_scheduler.contains(entity.id, entity.identifier) != null) {
-          continue;
-        }
-        final operation = element.$1;
-        try {
-          final task = _createTaskWithEntity(entity, operation);
-          if (_scheduler.add(task)) {
-            controller.add(task);
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-      controller.close();
-    }).onError((error, stackTrace) {
-      controller.addError(error ?? -1, stackTrace);
-      controller.close();
-    });
-
-    return controller.stream;
-  }
-
-  TaskImpl<D, R, Operation<D, R>> _createTaskWithEntity<D, R>(
-    TaskEntity entity,
-    HydratedOperation<D, R> operation,
-  ) {
-    return _createTask(
-      operation,
-      operation.fromJson(entity.data),
-      id: entity.id,
-      identifier: entity.identifier,
-      priority: entity.priority,
-      isPaused: entity.status == TaskStatus.paused,
-      isHydrated: true,
-    );
-  }
-
-  TaskImpl<D, R, Operation<D, R>> _createTask<D, R>(
-    Operation<D, R> operation,
-    D initialData, {
-    String? id,
-    String? identifier,
-    TaskPriority priority = TaskPriority.normal,
-    required bool isPaused,
-    required bool isHydrated,
-  }) {
-    final context = _createContext<D, R>(
-      operation,
-      initialData: initialData,
-      id: id,
-      identifier: identifier,
-      priority: priority,
-      isPaused: isPaused,
-    );
-    if (operation is HydratedOperation<D, R>) {
-      return HydratedTaskImpl._(
-        operation: operation,
-        context: context,
-        isHydrated: isHydrated,
-      );
-    } else {
-      return TaskImpl._(
-        operation: operation,
-        context: context,
-      );
-    }
-  }
-
-  OperationContextImpl<D, R> _createContext<D, R>(
-    Operation<D, R> operation, {
-    required D initialData,
-    required String? id,
-    required String? identifier,
-    required TaskPriority priority,
-    required bool isPaused,
-  }) {
-    return operation._createContext(
-      initialData: initialData,
-      id: id,
-      identifier: identifier,
-      priority: priority,
-      isPaused: isPaused,
-    );
-  }
-}
-
-abstract class _Operation<D, R> {
-  const _Operation();
-
-  OperationContextImpl<D, R> _createContext({
-    required D initialData,
-    required String? id,
-    required String? identifier,
-    required TaskPriority priority,
-    required bool isPaused,
-  }) {
-    return OperationContextImpl<D, R>(
-      initialData: initialData,
-      id: id,
-      identifier: identifier,
-      priority: priority,
-      status: isPaused ? TaskStatus.paused : TaskStatus.pending,
-    );
-  }
-
-  IsolateOperationContextImpl<D, R> _createIsolateContext({
-    required D initialData,
-    required String? id,
-    required String? identifier,
-    required TaskPriority priority,
-    required bool isPaused,
-  }) {
-    return IsolateOperationContextImpl<D, R>(
-      initialData: initialData,
-      id: id,
-      identifier: identifier,
-      priority: priority,
-      status: isPaused ? TaskStatus.paused : TaskStatus.pending,
-    );
   }
 }
