@@ -5,9 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:task_manager/task_manager.dart';
 
 void main() async {
-  StorageManager.registerStorage(CustomStorage.adapter());
-  StorageManager.registerOperation(() => const CountdownOperation());
-
   runApp(const MyApp());
 }
 
@@ -17,7 +14,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Task Example',
+      title: 'Task Manager Example',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
@@ -36,13 +33,19 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final Worker worker = Worker();
+  late final HydratedWorker worker;
 
   @override
   void initState() {
     super.initState();
 
+    worker = HydratedWorker(
+      storage: CustomStorage.adapter(),
+      identifier: 'default',
+    );
     worker.maxConcurrencies = 2;
+    worker.register(() => const CountdownOperation());
+    worker.loadTasks();
   }
 
   void _addTasks() {

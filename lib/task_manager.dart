@@ -15,9 +15,9 @@ part 'src/operation/isolate_operation_context_impl.dart';
 
 part 'src/scheduling/scheduler.dart';
 part 'src/scheduling/worker.dart';
+part 'src/scheduling/hydrated_worker.dart';
 
 part 'src/storage/storage.dart';
-part 'src/storage/storage_manager.dart';
 
 abstract class OperationContext<D, R> {
   D get data;
@@ -96,15 +96,6 @@ abstract class Worker {
     TaskIdentifierStrategy strategy = TaskIdentifierStrategy.reuse,
   });
 
-  // void registerScheduledTask<D, R>(
-  //   String name,
-  //   Duration duration,
-  //   Task<D, R> Function() builder, {
-  //   TaskPriority priority = TaskPriority.normal,
-  // }) {
-  //   throw UnimplementedError();
-  // }
-
   void registerRepeatedTask<D, R>(
     Operation<D, R> operation,
     D initialData, {
@@ -123,13 +114,20 @@ abstract class Worker {
     throw UnimplementedError();
   }
 
-  /// Wait for all tasks to complete
+  void registerScheduledTask<D, R>(
+    String name,
+    Duration duration,
+    Task<D, R> Function() builder, {
+    TaskPriority priority = TaskPriority.normal,
+  }) {
+    throw UnimplementedError();
+  }
+
   Future<void> wait();
 
-  /// Clear all tasks
   void clear();
 
-  // Future<void> cancelTaskWithIdentifier(TaskIdentifier identifier);
+  void cancelTask(String identifier);
 }
 
 abstract class HydratedOperation<D, R> extends Operation<D, R> {
@@ -139,10 +137,25 @@ abstract class HydratedOperation<D, R> extends Operation<D, R> {
   dynamic toJson(D data);
 }
 
-abstract class HydratedWorker extends Worker {
-  HydratedWorker._() : super._();
+abstract class HydratedWorker implements Worker {
+  factory HydratedWorker({
+    required Storage storage,
+    required String identifier,
+  }) = HydratedWorkerImpl;
 
-  // Stream<Task> loadTasks();
+  @override
+  Task<D, R> run<D, R>(
+    covariant HydratedOperation<D, R> operation,
+    D initialData, {
+    bool isPaused = false,
+    TaskPriority priority = TaskPriority.normal,
+    TaskIdentifier? identifier,
+    TaskIdentifierStrategy strategy = TaskIdentifierStrategy.reuse,
+  });
+
+  void register<D, R>(HydratedOperation<D, R> Function() create);
+
+  Stream<Task> loadTasks();
 }
 
 enum TaskPriority {
@@ -152,24 +165,3 @@ enum TaskPriority {
   high,
   veryHigh,
 }
-
-// mixin ComputeMixin {
-//   //
-// }
-
-// mixin HydratedMixin<D> {
-//   D fromJson(dynamic json);
-//   dynamic toJson(D data);
-// }
-
-
-// final class BlockOperation<D, R> extends Operation<D, R> {
-//   const BlockOperation(this.block);
-
-//   final FutureOr<Result<D, R>> Function(OperationContext<D, R> context) block;
-
-//   @override
-//   FutureOr<Result<D, R>> run(OperationContext<D, R> context) async {
-//     return block(context);
-//   }
-// }

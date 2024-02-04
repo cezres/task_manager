@@ -1,28 +1,15 @@
 part of '../../task_manager.dart';
 
-final Map<String, WorkerImpl> _workers = {};
-
 class WorkerImpl extends Worker {
-  WorkerImpl._(String identifier) : super._() {
+  WorkerImpl._() : super._() {
     _scheduler = SchedulerImpl(
       executeTask: _executeTask,
-      identifier: identifier,
     );
   }
 
-  factory WorkerImpl([String identifier = 'default']) {
-    var worker = _workers[identifier];
-    if (worker != null) {
-      return worker;
-    }
-    worker = WorkerImpl._(identifier);
-    _workers[identifier] = worker;
-    return worker;
-  }
+  factory WorkerImpl() => WorkerImpl._();
 
   late final Scheduler _scheduler;
-
-  String get identifier => _scheduler.identifier;
 
   @override
   int get maxConcurrencies => _scheduler.maxConcurrencies;
@@ -52,6 +39,11 @@ class WorkerImpl extends Worker {
   void clear() => _scheduler.clear();
 
   @override
+  void cancelTask(String identifier) {
+    _scheduler.taskOfIdentifier(identifier)?.cancel();
+  }
+
+  @override
   Task<D, R> run<D, R>(Operation<D, R> operation, D initialData,
       {bool isPaused = false,
       TaskPriority priority = TaskPriority.normal,
@@ -63,17 +55,12 @@ class WorkerImpl extends Worker {
       strategy: strategy,
       ifAbsent: () => TaskImpl(
         operation: operation,
-        context: operation.compute
-            ? IsolateOperationContextImpl(
-                initialData: initialData,
-                priority: priority,
-                status: isPaused ? TaskStatus.paused : TaskStatus.pending,
-              )
-            : OperationContextImpl(
-                initialData: initialData,
-                priority: priority,
-                status: isPaused ? TaskStatus.paused : TaskStatus.pending,
-              ),
+        context: createContext(
+          operation: operation,
+          initialData: initialData,
+          priority: priority,
+          isPaused: isPaused,
+        ),
         identifier: identifier,
       ),
     );
@@ -98,8 +85,34 @@ class WorkerImpl extends Worker {
       }
     }
     final task = ifAbsent();
-    _scheduler.add(task);
+    add(task);
     return task;
+  }
+
+  bool add(TaskImpl task) {
+    return _scheduler.add(task);
+  }
+
+  OperationContextImpl<D, R> createContext<D, R>({
+    required Operation<D, R> operation,
+    required D initialData,
+    required TaskPriority priority,
+    required bool isPaused,
+  }) {
+    final status = isPaused ? TaskStatus.paused : TaskStatus.pending;
+    if (operation.compute) {
+      return IsolateOperationContextImpl(
+        initialData: initialData,
+        priority: priority,
+        status: status,
+      );
+    } else {
+      return OperationContextImpl(
+        initialData: initialData,
+        priority: priority,
+        status: status,
+      );
+    }
   }
 
   Future<ResultType> _executeTask(TaskImpl task) {

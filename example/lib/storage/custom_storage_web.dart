@@ -21,12 +21,12 @@ class CustomStorageWebImpl extends CustomStorage {
   }
 
   @override
-  FutureOr<void> clear(String identifier) async {
+  FutureOr<void> clear(String worker) async {
     await _ready.future;
     _database.transaction((transaction) {
       return _store.delete(
         transaction,
-        finder: Finder(filter: Filter.equals('identifier', identifier)),
+        finder: Finder(filter: Filter.equals('worker', worker)),
       );
     });
   }
@@ -37,7 +37,7 @@ class CustomStorageWebImpl extends CustomStorage {
   }
 
   @override
-  FutureOr<void> delete(String taskId, String identifier) async {
+  FutureOr<void> delete(String taskId, String worker) async {
     await _ready.future;
     await _database.transaction((transaction) {
       final record = _store.record(taskId);
@@ -46,13 +46,13 @@ class CustomStorageWebImpl extends CustomStorage {
   }
 
   @override
-  Stream<TaskEntity> readAll(String identifier) {
+  Stream<TaskEntity> readAll(String worker) {
     final controller = StreamController<TaskEntity>();
 
     _ready.future.then((value) {
       return _database.transaction((transaction) async {
         final finder = Finder(
-          filter: Filter.equals('identifier', identifier),
+          filter: Filter.equals('worker', worker),
         );
         final records = await _store.find(transaction, finder: finder);
         for (var element in records) {
@@ -71,14 +71,14 @@ class CustomStorageWebImpl extends CustomStorage {
   }
 
   @override
-  FutureOr<void> write(TaskEntity task, String identifier) async {
+  FutureOr<void> write(TaskEntity task, String worker) async {
     await _ready.future;
     await _database.transaction((transaction) {
       final record = _store.record(task.id);
       record.put(
         transaction,
         {
-          'identifier': identifier,
+          'worker': worker,
           'entity': task.toJson(),
         },
       );

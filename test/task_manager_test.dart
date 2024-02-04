@@ -7,150 +7,139 @@ import 'package:task_manager/task_manager.dart';
 import 'memory_storage.dart';
 
 void main() {
-  // setUp(() {
-  //   WidgetsFlutterBinding.ensureInitialized();
-  //   debugPrint('setUp');
-  // });
-
-  Future<void> ensureDataStored() {
-    return Future.delayed(const Duration(milliseconds: 100));
-  }
-
-  test('xxx', () async {
-    final Completer<int> completer = Completer<int>();
-
-    Future.delayed(const Duration(seconds: 1), () {
-      // completer.complete(1);
-      // completer.complete();
-      completer.completeError(CanceledException());
-    });
-
-    try {
-      debugPrint('${await completer.future}');
-    } catch (e) {
-      debugPrint('catch: $e');
-    }
-  });
-
-  test('run a task', () async {
-    final worker = WorkerImpl();
-    final task = worker.addCountdownTask(10);
-
-    task.stream.listen((event) {
-      debugPrint('CountdownTask: ${event.data} - ${event.status}');
-      if (event.data == 0) {
-        debugPrint('Finish');
-      }
-    });
-
+  test('Run a task', () async {
+    final worker = Worker();
+    final task = worker.run(const CountdownOperation(), 10);
     expect(task.status, TaskStatus.running);
     await task.wait();
     expect(task.status, TaskStatus.completed);
-    expect(task.data, 0);
     expect(worker.length, 0);
   });
 
-  test('storage', () async {
-    /// Initialize
-    final worker = WorkerImpl();
-    StorageManager.registerStorage(MemoryStorage());
-    StorageManager.registerOperation(() => const CountdownOperation());
-    StorageManager.clear(worker.identifier);
-
-    /// Add a paused task
-    final task = worker.addCountdownTask(6, isPaused: true);
+  test('Pause task', () async {
+    final worker = Worker();
+    final task = worker.run(const CountdownOperation(), 10, isPaused: true);
     expect(task.status, TaskStatus.paused);
-    expect(worker.length, 1);
-    await ensureDataStored();
 
-    worker.clear();
-    expect(worker.length, 0);
-    var list = await worker.loadTasksWithStorage().toList();
-    expect(list.length, 1);
-    expect(list[0].status, TaskStatus.paused);
-
-    /// Resume the task to completed
-    list[0].resume();
-    await list[0].wait();
-    await ensureDataStored();
-    expect(worker.length, 0);
-
-    /// Load tasks from storage
-    list = await worker.loadTasksWithStorage().toList();
-    expect(list.length, 0);
-  });
-
-  test('worker', () async {
-    final worker = WorkerImpl();
-    worker.maxConcurrencies = 2;
-    worker.stream.listen((event) {
-      String runningTasks = "";
-      for (var element in worker.runningTasks) {
-        runningTasks += '${element.id}, ';
-      }
-      debugPrint('------');
-      debugPrint('runningTasks: $runningTasks');
-
-      String pendingTasks = "";
-      for (var element in worker.pendingTasks) {
-        pendingTasks += '${element.id}, ';
-      }
-      debugPrint('pendingTasks: $pendingTasks');
-    });
-
-    for (var i = 0; i < 4; i++) {
-      worker.addCountdownTask(6);
-    }
-    expect(worker.length, 4);
-
-    await worker.wait();
-    debugPrint('All tasks completed');
-    expect(worker.length, 0);
-  });
-
-  test('run isolate task', () async {
-    final worker = IsolateWorker();
-    final task = worker.addCountdownTask(10);
-
-    task.stream.listen((event) {
-      debugPrint('CountdownTask: ${event.data} - ${event.status}');
-      if (event.data == 0) {
-        debugPrint('Finish');
-      }
-    });
-
+    task.resume();
+    expect(task.status, TaskStatus.running);
     await Future.delayed(const Duration(milliseconds: 400));
-    debugPrint('Pause');
+    expect(task.status, TaskStatus.running);
+
     task.pause();
-
     await Future.delayed(const Duration(milliseconds: 400));
     expect(task.status, TaskStatus.paused);
 
-    await Future.delayed(const Duration(seconds: 4));
-
-    debugPrint('Resume');
     task.resume();
     expect(task.status, TaskStatus.running);
 
+    await task.wait();
+    expect(task.status, TaskStatus.completed);
+  });
+
+  test('Cancel task', () async {
+    final worker = Worker();
+    final task = worker.run(const CountdownOperation(), 10);
+    expect(task.status, TaskStatus.running);
+
     await Future.delayed(const Duration(milliseconds: 400));
-    debugPrint('Cancel');
     task.cancel();
 
-    try {
-      await task.wait();
-    } catch (e) {
-      debugPrint('catch: $e');
-    }
+    await task.wait().onError((error, stackTrace) {
+      debugPrint('Error: $error');
+    }).whenComplete(() {
+      expect(task.status, TaskStatus.canceled);
+    });
+  });
 
-    await worker.wait();
-    debugPrint('done');
+  test('Run a task in isolate', () async {
+    final worker = Worker();
+    final task = worker.run(const CountdownComputeOperation(), 10);
+    _listenTask(task);
+    expect(task.status, TaskStatus.running);
+    await task.wait();
+    expect(task.status, TaskStatus.completed);
+  });
 
-    expect(task.status, TaskStatus.canceled);
+  test('Run a hydrated task', () async {
+    final storage = MemoryStorage();
+    final worker = HydratedWorker(storage: storage, identifier: 'test');
+    worker.register(() => const CountdownHydratedOperation());
+    final task = worker.run(const CountdownHydratedOperation(), 10);
+    expect(task.status, TaskStatus.running);
+    await _ensureDataStored();
+
+    var list = await storage.readAll('test').toList();
+    expect(list.length, 1);
+
+    await task.wait();
+    expect(task.status, TaskStatus.completed);
+    await _ensureDataStored();
+
+    list = await storage.readAll('test').toList();
+    expect(list.length, 0);
+  });
+
+  test('Task priority', () async {
+    final worker = WorkerImpl();
+    worker.maxConcurrencies = 1;
+
+    /// Will be executed in the order of task1 task3 task2
+
+    final task1 = worker.run(
+      const CountdownOperation(),
+      10,
+      priority: TaskPriority.normal,
+    );
+
+    final task2 = worker.run(
+      const CountdownOperation(),
+      10,
+      priority: TaskPriority.low,
+    );
+
+    final task3 = worker.run(
+      const CountdownOperation(),
+      10,
+      priority: TaskPriority.high,
+    );
+
+    _listenTask(task1);
+    _listenTask(task2);
+    _listenTask(task3);
+
+    await task1.wait();
+    expect(task1.status, TaskStatus.completed);
+    expect(task2.status, TaskStatus.pending);
+    expect(task3.status, TaskStatus.running);
+
+    await task3.wait();
+    expect(task3.status, TaskStatus.completed);
+    expect(task2.status, TaskStatus.running);
+
+    await task2.wait();
+    expect(task2.status, TaskStatus.completed);
+
     expect(worker.length, 0);
   });
 }
 
-class CountdownOperation extends HydratedOperation<int, void> {
+void _listenTask(Task task) {
+  task.stream.listen((event) {
+    if (event.status == TaskStatus.running ||
+        event.status == TaskStatus.paused) {
+      debugPrint('${event.name}: ${event.data} - ${event.status}');
+    } else {
+      debugPrint('${event.name}: ${event.status}');
+    }
+  });
+}
+
+Future<void> _ensureDataStored() {
+  return Future.delayed(const Duration(milliseconds: 100));
+}
+
+class CountdownOperation extends Operation<int, void> {
   const CountdownOperation();
 
   @override
@@ -170,6 +159,11 @@ class CountdownOperation extends HydratedOperation<int, void> {
       }
     }
   }
+}
+
+class CountdownHydratedOperation extends CountdownOperation
+    implements HydratedOperation<int, void> {
+  const CountdownHydratedOperation();
 
   @override
   int fromJson(json) {
@@ -182,13 +176,9 @@ class CountdownOperation extends HydratedOperation<int, void> {
   }
 }
 
-extension on WorkerImpl {
-  TaskImpl<int, void, Operation<int, void>> addCountdownTask(int initialData,
-      {bool isPaused = false}) {
-    return addTask(
-      const CountdownOperation(),
-      initialData,
-      isPaused: isPaused,
-    );
-  }
+class CountdownComputeOperation extends CountdownOperation {
+  const CountdownComputeOperation();
+
+  @override
+  bool get compute => true;
 }

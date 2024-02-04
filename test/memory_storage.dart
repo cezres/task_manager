@@ -20,7 +20,8 @@ class MemoryStorage extends Storage {
 
   @override
   Stream<TaskEntity> readAll(String identifier) {
-    return Stream.fromIterable(_caches[identifier]?.values ?? []);
+    final list = _caches[identifier]?.values.toList() ?? [];
+    return Stream.fromIterable(List<TaskEntity>.from(list));
   }
 
   @override

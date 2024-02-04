@@ -2,34 +2,13 @@ part of '../../task_manager.dart';
 
 typedef TaskIdentifier = String;
 typedef TaskId = String;
-typedef SchedulerIdentifier = String;
 
 enum TaskIdentifierStrategy {
   reuse, // Reuse tasks with the same identifier
   cancel, // Cancel the previous task with the same identifier
 }
 
-mixin Scheduleable {
-  Scheduler? _scheduler;
-
-  Scheduler? get scheduler => _scheduler;
-
-  void ensureInitialized(Scheduler value) {
-    if (_scheduler == null) {
-      _scheduler = value;
-    } else {
-      throw StateError('Task is already initialized');
-    }
-  }
-
-  TaskStatus get status;
-
-  FutureOr<ResultType> run();
-}
-
 abstract class Scheduler {
-  SchedulerIdentifier get identifier;
-
   Stream<Scheduler> get stream;
 
   int maxConcurrencies = 4;
@@ -66,8 +45,6 @@ abstract class Scheduler {
 
   void clear();
 
-  // void cancelWithIdentifier(String identifier);
-
   operator [](TaskId id);
 }
 
@@ -79,13 +56,7 @@ class SchedulerImpl extends Scheduler {
   final Map<TaskId, TaskImpl> _taskOfId = {};
   final Map<TaskIdentifier, TaskImpl> _taskOfIdentifier = {};
 
-  SchedulerImpl({
-    required this.executeTask,
-    required this.identifier,
-  });
-
-  @override
-  final String identifier;
+  SchedulerImpl({required this.executeTask});
 
   final Future<ResultType> Function(TaskImpl task) executeTask;
 
@@ -294,4 +265,22 @@ class SchedulerImpl extends Scheduler {
 
   @override
   operator [](TaskId id) => _taskOfId[id];
+}
+
+mixin Scheduleable {
+  Scheduler? _scheduler;
+
+  Scheduler? get scheduler => _scheduler;
+
+  void ensureInitialized(Scheduler value) {
+    if (_scheduler == null) {
+      _scheduler = value;
+    } else {
+      throw StateError('Task is already initialized');
+    }
+  }
+
+  TaskStatus get status;
+
+  FutureOr<ResultType> run();
 }

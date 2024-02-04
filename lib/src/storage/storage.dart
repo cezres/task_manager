@@ -3,13 +3,13 @@ part of '../../task_manager.dart';
 abstract class Storage {
   const Storage();
 
-  Stream<TaskEntity> readAll(String identifier);
+  Stream<TaskEntity> readAll(String worker);
 
-  FutureOr<void> write(TaskEntity task, String identifier);
+  FutureOr<void> write(TaskEntity task, String worker);
 
-  FutureOr<void> delete(String taskId, String identifier);
+  FutureOr<void> delete(String taskId, String worker);
 
-  FutureOr<void> clear(String identifier);
+  FutureOr<void> clear(String worker);
 
   FutureOr<void> close();
 }
@@ -17,29 +17,26 @@ abstract class Storage {
 final class TaskEntity {
   TaskEntity({
     required this.operation,
-    // required this.type,
     required this.id,
     required this.identifier,
-    required this.status,
+    required this.isPaused,
     required this.priority,
     required this.data,
   });
 
   final String operation;
-  // final String type;
   final String id;
   final String? identifier;
-  final TaskStatus status;
+  final bool isPaused;
   final TaskPriority priority;
   final dynamic data;
 
   factory TaskEntity.fromJson(Map<String, dynamic> json) {
     return TaskEntity(
       operation: json['operation'],
-      // type: json['type'],
       id: json['id'],
       identifier: json['identifier'],
-      status: TaskStatus.values[json['status']],
+      isPaused: json['isPaused'],
       priority: TaskPriority.values[json['priority']],
       data: json['data'],
     );
@@ -48,10 +45,9 @@ final class TaskEntity {
   Map<String, dynamic> toJson() {
     return {
       'operation': operation,
-      // 'type': type,
       'id': id,
       'identifier': identifier,
-      'status': status.index,
+      'isPaused': isPaused,
       'priority': priority.index,
       'data': data,
     };

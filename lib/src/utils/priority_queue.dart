@@ -122,11 +122,11 @@ class PriorityQueueImpl<E extends PriorityMixin> implements PriorityQueue<E> {
     if (_priorities.isEmpty) {
       throw StateError('PriorityQueue is empty');
     }
-    final priority = _priorities.first;
+    final priority = _priorities.last; // highest priority
     final list = _listOfPriority[priority]!;
     final element = list.removeAt(0);
     if (list.isEmpty) {
-      _priorities.removeAt(0);
+      _priorities.removeLast();
       _listOfPriority.remove(priority);
     }
     return element;

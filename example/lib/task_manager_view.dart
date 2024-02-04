@@ -215,8 +215,4 @@ class _TaskListItem extends StatelessWidget {
       return const SizedBox.shrink();
     }
   }
-
-  // Widget _buildProgressView(BuildContext context, {required Task task}) {
-  //   return
-  // }
 }

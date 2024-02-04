@@ -33,9 +33,7 @@ task_manager:
 ## Usage
 
 
-### Create a task
-
-The following example demonstrates how to create a simple task:
+### Run a task
 
 ```dart
 class ExampleOperation extends Operation<int, String> {
@@ -53,15 +51,13 @@ void example() async {
   final worker = Worker();
   worker.maxConcurrencies = 2;
   // Add a task
-  final task = worker.addTask(const ExampleOperation(), 1);
+  final task = worker.run(const ExampleOperation(), 1);
   // Wait for the task to complete
-  await task.wait(); // Result.completed('Hello World - 1')
+  await task.wait(); // 'Hello World - 1'
 }
 ```
 
-### Pause or cancel a task
-
-For tasks in progress, you need to check if the operation should be paused or canceled, as shown below:
+### Pause task
 
 ```dart
 class CountdownOperation extends Operation<int, void> {
@@ -71,7 +67,7 @@ class CountdownOperation extends Operation<int, void> {
   FutureOr<Result<int, void>> run(OperationContext<int, void> context) async {
     int data = context.data;
     while (data > 0) {
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await Future.delayed(const Duration(milliseconds: 200));
       data -= 1;
 
       /// Check if the operation should be paused or canceled
@@ -87,50 +83,104 @@ class CountdownOperation extends Operation<int, void> {
   }
 }
 
-void example() {
-  task.cancel();
-  task.pause();
-  task.resume();
+void example() async {
+    final worker = Worker();
+    final task = worker.run(const CountdownOperation(), 10, isPaused: true);
+    expect(task.status, TaskStatus.paused);
+
+    task.resume();
+    expect(task.status, TaskStatus.running);
+    await Future.delayed(const Duration(milliseconds: 400));
+    expect(task.status, TaskStatus.running);
+
+    task.pause();
+    await Future.delayed(const Duration(milliseconds: 400));
+    expect(task.status, TaskStatus.paused);
+
+    task.resume();
+    expect(task.status, TaskStatus.running);
+
+    await task.wait();
+    expect(task.status, TaskStatus.completed);
 }
 ```
 
-### Create hydrated task
-
-To create a hydrated task, refer to the following code:
+### Cancel task
 
 ```dart
-class ExampleHydratedOperation extends HydratedOperation<int, void> {
-  const ExampleHydratedOperation();
+void example() async {
+    final worker = Worker();
+    final task = worker.run(const CountdownOperation(), 10);
+    expect(task.status, TaskStatus.running);
+
+    await Future.delayed(const Duration(milliseconds: 400));
+    task.cancel();
+
+    await task.wait().onError((error, stackTrace) {
+      debugPrint('Error: $error');
+    }).whenComplete(() {
+      expect(task.status, TaskStatus.canceled);
+    });
+}
+```
+
+### Run a task in isolate
+
+```dart
+class CountdownComputeOperation extends CountdownOperation {
+  const CountdownComputeOperation();
 
   @override
-  FutureOr<Result<int, void>> run(OperationContext<int, void> context) async {
-    await Future.delayed(const Duration(seconds: 1));
-    return Result.completed('Hello World - ${context.data}');
+  bool get compute => true;
+}
+
+void example() async {
+    final worker = Worker();
+    final task = worker.run(const CountdownComputeOperation(), 10);
+    _listenTask(task);
+    expect(task.status, TaskStatus.running);
+    await task.wait();
+    expect(task.status, TaskStatus.completed);
+}
+```
+
+### Run a hydrated task
+
+
+```dart
+class CountdownHydratedOperation extends CountdownOperation
+    implements HydratedOperation<int, void> {
+  const CountdownHydratedOperation();
+
+  @override
+  int fromJson(json) {
+    return json;
   }
 
   @override
   toJson(int data) {
     return data;
   }
-
-  @override
-  int fromJson(json) {
-    return json;
-  }
 }
 
 void example() {
-  StorageManager.registerStorage(CustomStorage());
-  StorageManager.registerOperation(() => const ExampleHydratedOperation());
-}
+    final storage = CustomStorage();
+    final worker = HydratedWorker(storage: storage, identifier: 'test');
+    worker.register(() => const CountdownHydratedOperation());
+
+    final task = worker.run(const CountdownHydratedOperation(), 10);
+    expect(task.status, TaskStatus.running);
+    await _ensureDataStored();
+
+    var list = await storage.readAll('test').toList();
+    expect(list.length, 1);
+
+    await task.wait();
+    expect(task.status, TaskStatus.completed);
+    await _ensureDataStored();
+
+    list = await storage.readAll('test').toList();
+    expect(list.length, 0);}
 ```
 
 
-<details>
-  <summary>More...</summary>
-  test
-  #### test
-  ```dart
-  final test = 'test';
-  ```
-</details>
