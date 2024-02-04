@@ -4,20 +4,14 @@ Task Manager is a tool for managing and scheduling task execution, designed to s
 
 *[Task Manager Example Web Page](https://flutter-task-manager.github.io/)*
 
-* [Features](#features)
 * [Getting started](#getting-started)
 * [Usage](#usage)
-  * [Create a task](#create-a-task)
-  * [Pause or cancel a task](#pause-or-cancel-a-task)
-  * [Create hydrated task](#create-hydrated-task)
+  * [Run a task](#run-a-task)
+  * [Pause task](#pause-task)
+  * [Cancel task](#cancel-task)
+  * [Run a task in isolate](#run-a-task-in-isolate)
+  * [Run a hydrated task](#run-a-hydrated-task)
 
-## Features
-
-- Pause and resume task
-- Cancel task
-- Task priority
-- Hydrated task
-- Isolate Task
 
 ## Getting started
 
@@ -47,12 +41,9 @@ class ExampleOperation extends Operation<int, String> {
 }
 
 void example() async {
-  // Create a worker
   final worker = Worker();
   worker.maxConcurrencies = 2;
-  // Add a task
   final task = worker.run(const ExampleOperation(), 1);
-  // Wait for the task to complete
   await task.wait(); // 'Hello World - 1'
 }
 ```
@@ -111,7 +102,6 @@ void example() async {
 void example() async {
     final worker = Worker();
     final task = worker.run(const CountdownOperation(), 10);
-    expect(task.status, TaskStatus.running);
 
     await Future.delayed(const Duration(milliseconds: 400));
     task.cancel();
@@ -137,10 +127,7 @@ class CountdownComputeOperation extends CountdownOperation {
 void example() async {
     final worker = Worker();
     final task = worker.run(const CountdownComputeOperation(), 10);
-    _listenTask(task);
-    expect(task.status, TaskStatus.running);
     await task.wait();
-    expect(task.status, TaskStatus.completed);
 }
 ```
 
@@ -169,18 +156,8 @@ void example() {
     worker.register(() => const CountdownHydratedOperation());
 
     final task = worker.run(const CountdownHydratedOperation(), 10);
-    expect(task.status, TaskStatus.running);
-    await _ensureDataStored();
-
-    var list = await storage.readAll('test').toList();
-    expect(list.length, 1);
-
     await task.wait();
-    expect(task.status, TaskStatus.completed);
-    await _ensureDataStored();
-
-    list = await storage.readAll('test').toList();
-    expect(list.length, 0);}
+}
 ```
 
 
