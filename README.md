@@ -6,16 +6,16 @@ Task Manager is a tool for managing and scheduling task execution, designed to s
 
 * [Getting started](#getting-started)
 * [Usage](#usage)
-  * [Run a task](#run-a-task)
+  * [Run task](#run-task)
   * [Pause task](#pause-task)
   * [Cancel task](#cancel-task)
-  * [Run a task in isolate](#run-a-task-in-isolate)
-  * [Run a hydrated task](#run-a-hydrated-task)
+  * [Run task in isolate](#run-task-in-isolate)
+  * [Run hydrated task](#run-hydrated-task)
 
 
 ## Getting started
 
-Add the following dependencies to your `pubspec.yaml file:
+Add the following dependencies to your `pubspec.yaml` file:
 
 ```
 task_manager:
@@ -27,7 +27,7 @@ task_manager:
 ## Usage
 
 
-### Run a task
+### Run task
 
 ```dart
 class ExampleOperation extends Operation<int, String> {
@@ -114,7 +114,7 @@ void example() async {
 }
 ```
 
-### Run a task in isolate
+### Run task in isolate
 
 ```dart
 class CountdownComputeOperation extends CountdownOperation {
@@ -131,7 +131,7 @@ void example() async {
 }
 ```
 
-### Run a hydrated task
+### Run hydrated task
 
 
 ```dart
