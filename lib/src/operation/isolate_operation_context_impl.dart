@@ -134,6 +134,20 @@ final class _PauseTaskAction {
 }
 
 final class _EmitTaskAction {
-  _EmitTaskAction(this.data);
-  final dynamic data;
+  _EmitTaskAction(dynamic data) {
+    if (data is Uint8List) {
+      _data = TransferableTypedData.fromList([data]);
+    } else {
+      _data = data;
+    }
+  }
+  late final dynamic _data;
+
+  dynamic get data {
+    if (_data is TransferableTypedData) {
+      return _data.materialize().asUint8List();
+    } else {
+      return _data;
+    }
+  }
 }
