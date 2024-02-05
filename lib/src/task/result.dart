@@ -47,6 +47,46 @@ class Result<D, R> {
         return 'Error$suffix';
     }
   }
+
+  Result tryToTransferableTypedData() {
+    switch (type) {
+      case ResultType.completed:
+        if (result is Uint8List) {
+          return Result.completed(
+            TransferableTypedData.fromList([result as Uint8List]),
+          );
+        }
+      case ResultType.paused:
+        if (data is Uint8List) {
+          return Result.paused(
+            TransferableTypedData.fromList([result as Uint8List]),
+          );
+        }
+        break;
+      default:
+    }
+    return this;
+  }
+
+  Result tryFromTransferableTypedData() {
+    switch (type) {
+      case ResultType.completed:
+        if (result is TransferableTypedData) {
+          return Result.completed(
+            (result as TransferableTypedData).materialize().asUint8List(),
+          );
+        }
+      case ResultType.paused:
+        if (data is TransferableTypedData) {
+          return Result.paused(
+            (data as TransferableTypedData).materialize().asUint8List(),
+          );
+        }
+        break;
+      default:
+    }
+    return this;
+  }
 }
 
 enum ResultType {

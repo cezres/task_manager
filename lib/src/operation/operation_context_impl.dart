@@ -108,7 +108,7 @@ class OperationContextImpl<D, R> extends OperationContext<D, R> {
     }
   }
 
-  void _handlerResult(Result<D, R> result) {
+  void _handlerResult(Result result) {
     switch (result.type) {
       case ResultType.paused:
         _flag = TaskFlag.none;

@@ -4,7 +4,7 @@ class HydratedWorkerImpl extends WorkerImpl implements HydratedWorker {
   HydratedWorkerImpl({
     required this.storage,
     required this.identifier,
-  }) : super._();
+  }) : super();
 
   final Storage storage;
   final String identifier;

@@ -2,6 +2,7 @@ library task_manager;
 
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:task_manager/src/utils/generate_incremental_id.dart';
@@ -73,8 +74,7 @@ abstract class Task<D, R> {
 }
 
 abstract class Worker {
-  Worker._();
-  factory Worker() => WorkerImpl();
+  factory Worker() = WorkerImpl;
 
   int get maxConcurrencies;
   set maxConcurrencies(int value);
@@ -110,18 +110,14 @@ abstract class Worker {
     )? nextTimeInterval,
     bool Function(R? result, dynamic error, int runCount, int runTime)?
         terminate,
-  }) {
-    throw UnimplementedError();
-  }
+  });
 
   void registerScheduledTask<D, R>(
     String name,
     Duration duration,
     Task<D, R> Function() builder, {
     TaskPriority priority = TaskPriority.normal,
-  }) {
-    throw UnimplementedError();
-  }
+  });
 
   Future<void> wait();
 

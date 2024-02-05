@@ -1,13 +1,11 @@
 part of '../../task_manager.dart';
 
-class WorkerImpl extends Worker {
-  WorkerImpl._() : super._() {
+class WorkerImpl implements Worker {
+  WorkerImpl() {
     _scheduler = SchedulerImpl(
       executeTask: _executeTask,
     );
   }
-
-  factory WorkerImpl() => WorkerImpl._();
 
   late final Scheduler _scheduler;
 
@@ -64,6 +62,28 @@ class WorkerImpl extends Worker {
         identifier: identifier,
       ),
     );
+  }
+
+  @override
+  void registerRepeatedTask<D, R>(Operation<D, R> operation, D initialData,
+      {required String name,
+      required Duration timeInterval,
+      TaskPriority priority = TaskPriority.normal,
+      Duration Function(R result, int runCount, int runTime,
+              Duration previousTimeInterval)?
+          nextTimeInterval,
+      bool Function(R? result, dynamic error, int runCount, int runTime)?
+          terminate}) {
+    // TODO: implement registerRepeatedTask
+    throw UnimplementedError();
+  }
+
+  @override
+  void registerScheduledTask<D, R>(
+      String name, Duration duration, Task<D, R> Function() builder,
+      {TaskPriority priority = TaskPriority.normal}) {
+    // TODO: implement registerScheduledTask
+    throw UnimplementedError();
   }
 
   Task<D, R> _putIfAbsent<D, R>({

@@ -45,23 +45,24 @@ class IsolateOperationContextImpl<D, R> extends OperationContextImpl<D, R> {
           final operation = message[0] as Operation;
           final context = message[1] as IsolateOperationContextImplWrapper;
           context.ensureInitialized();
-          return await operation.run(context);
+          final result = await operation.run(context);
+          return result.tryToTransferableTypedData();
         },
         [
           operation,
           context,
         ],
       );
-      _handlerResult(result as Result<D, R>);
+      _handlerResult(result.tryFromTransferableTypedData());
       return result.type;
     } catch (e) {
-      _handlerResult(Result<D, R>.error(e));
+      _handlerResult(Result.error(e));
       return ResultType.error;
     }
   }
 
   @override
-  void _handlerResult(Result<D, R> result) {
+  void _handlerResult(Result result) {
     super._handlerResult(result);
     switch (result.type) {
       case ResultType.canceled:

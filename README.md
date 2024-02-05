@@ -82,7 +82,6 @@ void example() async {
     task.resume();
     expect(task.status, TaskStatus.running);
     await Future.delayed(const Duration(milliseconds: 400));
-    expect(task.status, TaskStatus.running);
 
     task.pause();
     await Future.delayed(const Duration(milliseconds: 400));
