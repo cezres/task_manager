@@ -10,17 +10,14 @@ import 'package:task_manager/src/reusable_isolate.dart';
 import 'package:task_manager/src/utils/generate_incremental_id.dart';
 import 'package:task_manager/src/utils/priority_queue.dart';
 
-part 'src/task/task_impl.dart';
-part 'src/task/result.dart';
+part 'src/task_impl.dart';
 
-part 'src/operation/operation_context_impl.dart';
-part 'src/operation/isolate_operation_context_impl.dart';
+part 'src/operation_context_impl.dart';
 
-part 'src/scheduling/scheduler.dart';
-part 'src/scheduling/worker.dart';
-part 'src/scheduling/hydrated_worker.dart';
+part 'src/scheduler.dart';
+part 'src/worker.dart';
 
-part 'src/storage/storage.dart';
+part 'src/storage.dart';
 
 abstract class OperationContext<D, R> {
   D get data;
