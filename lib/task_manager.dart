@@ -1,10 +1,12 @@
 library task_manager;
 
+export 'src/reusable_isolate.dart';
+
 import 'dart:async';
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:task_manager/src/reusable_isolate.dart';
 import 'package:task_manager/src/utils/generate_incremental_id.dart';
 import 'package:task_manager/src/utils/priority_queue.dart';
 

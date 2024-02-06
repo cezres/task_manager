@@ -57,6 +57,14 @@ void main() {
     final task = worker.run(const CountdownComputeOperation(), 10);
     _listenTask(task);
     expect(task.status, TaskStatus.running);
+
+    await Future.delayed(const Duration(milliseconds: 400));
+    task.pause();
+    await Future.delayed(const Duration(milliseconds: 2000));
+    expect(task.status, TaskStatus.paused);
+
+    task.resume();
+
     await task.wait();
     expect(task.status, TaskStatus.completed);
   });
@@ -121,6 +129,32 @@ void main() {
     expect(task2.status, TaskStatus.completed);
 
     expect(worker.length, 0);
+  });
+
+  test('reusable_isolate', () async {
+    final task = ReusableIsolate.run(
+      (message, receive, emit) async {
+        int value = message;
+        receive.listen((event) {
+          emit(event);
+        });
+        while (value > 0) {
+          await Future.delayed(const Duration(milliseconds: 200));
+          value -= 1;
+          emit(value);
+        }
+        return message * 10;
+      },
+      10,
+    );
+
+    Future.delayed(const Duration(milliseconds: 1000)).then((value) {
+      task.emit(20);
+    });
+
+    final list = await task.receive.toSet();
+    expect(list, {9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 20});
+    expect(await task.wait(), 100);
   });
 }
 

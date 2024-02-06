@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:example/storage/custom_storage.dart';
+import 'package:flutter/material.dart';
 import 'package:path/path.dart';
 import 'package:task_manager/task_manager.dart';
 
@@ -18,7 +19,11 @@ class CustomStorageIOImpl extends CustomStorage {
       final file = File(element.path);
       final contents = await file.readAsString();
       final json = jsonDecode(contents);
-      yield TaskEntity.fromJson(json);
+      try {
+        yield TaskEntity.fromJson(json);
+      } catch (e) {
+        debugPrint('Error parsing task: $e');
+      }
     }
   }
 
