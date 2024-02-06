@@ -23,6 +23,7 @@ Task Manager is a tool for managing and scheduling task execution, designed to s
 - Automatically persist and restore task states
 - Send progress data while tasks are running
 - Reuse or cancel tasks with the same identifier
+- Reusable isolate
 
 ## Getting started
 
