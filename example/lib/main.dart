@@ -93,13 +93,13 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: const Text("Task Manager Example"),
         centerTitle: true,
-        actions: [
-          IconButton.outlined(
-            onPressed: _showMaxConcurrenciesDialog,
-            icon: const Icon(Icons.settings),
-          ),
-          const SizedBox(width: 24)
-        ],
+        // actions: [
+        //   IconButton.outlined(
+        //     onPressed: _showMaxConcurrenciesDialog,
+        //     icon: const Icon(Icons.settings),
+        //   ),
+        //   const SizedBox(width: 24)
+        // ],
       ),
       body: TaskManagerView(worker: worker),
       floatingActionButton: FloatingActionButton(
